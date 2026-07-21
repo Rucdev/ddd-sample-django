@@ -38,9 +38,14 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'lending',
     'catalog',
     'members',
 ]
+
+REST_FRAMEWORK = {
+    'EXCEPTION_HANDLER': 'shared.infrastructure.exception_handler.domain_exception_handler',
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

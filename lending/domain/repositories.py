@@ -1,0 +1,16 @@
+import uuid
+from typing import Protocol
+
+from lending.domain.entities import Loan
+
+
+class LoanRepository(Protocol):
+    def save(self, loan: Loan) -> None: ...
+
+    def find_by_id(self, loan_id: uuid.UUID) -> Loan | None: ...
+
+    def count_active_by_member(self, member_id: uuid.UUID) -> int: ...
+
+    def count_overdue_by_member(self, member_id: uuid.UUID) -> int: ...
+
+    def find_active_by_copy(self, copy_id: uuid.UUID) -> Loan | None: ...
