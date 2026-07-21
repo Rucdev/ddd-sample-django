@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>図書館の貸出管理システム</title>
+</head>
+<body>
+<h1>図書館の貸出管理システム</h1>
+<ul>
+    <li><a href="{% url 'lending:loan_list' %}">貸出一覧</a></li>
+    <li><a href="{% url 'reservation:reservation_list' %}">予約一覧</a></li>
+    <li><a href="/admin/">管理サイト(蔵書・会員マスタなど)</a></li>
+</ul>
+</body>
+</html>

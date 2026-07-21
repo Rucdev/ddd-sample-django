@@ -9,3 +9,74 @@ dependencies = [
     "djangorestframework>=3.17.1",
 ]
 
+[dependency-groups]
+dev = [
+    "import-linter>=2.13",
+]
+
+[tool.importlinter]
+root_packages = [
+    "shared",
+    "catalog",
+    "members",
+    "lending",
+    "reservation",
+]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "catalog's internals are only reachable through catalog.public"
+type = "forbidden"
+source_modules = ["lending", "reservation", "members"]
+forbidden_modules = ["catalog"]
+ignore_imports = [
+    "lending.** -> catalog.public",
+    "reservation.** -> catalog.public",
+    # Test fixtures are allowed to reach into another module's models directly to set up
+    # cross-module state; only production code must go through the module's public.py.
+    "lending.tests.** -> catalog.**",
+    "reservation.tests.** -> catalog.**",
+    "members.tests -> catalog.**",
+]
+
+[[tool.importlinter.contracts]]
+name = "members's internals are only reachable through members.public"
+type = "forbidden"
+source_modules = ["lending", "reservation", "catalog"]
+forbidden_modules = ["members"]
+ignore_imports = [
+    "lending.** -> members.public",
+    "reservation.** -> members.public",
+    "lending.tests.** -> members.**",
+    "reservation.tests.** -> members.**",
+]
+
+[[tool.importlinter.contracts]]
+name = "lending's internals are only reachable through lending.public or lending.domain.events"
+type = "forbidden"
+source_modules = ["reservation", "catalog", "members"]
+forbidden_modules = ["lending"]
+ignore_imports = [
+    "reservation.** -> lending.domain.events",
+    "members.** -> lending.public",
+    "members.** -> lending.domain.events",
+    "reservation.tests.** -> lending.**",
+    "members.tests -> lending.**",
+]
+
+[[tool.importlinter.contracts]]
+name = "reservation's internals are only reachable through reservation.public"
+type = "forbidden"
+source_modules = ["lending", "catalog", "members"]
+forbidden_modules = ["reservation"]
+ignore_imports = [
+    "lending.** -> reservation.public",
+    "lending.tests.** -> reservation.**",
+]
+
+[[tool.importlinter.contracts]]
+name = "domain layers stay Django-free"
+type = "forbidden"
+source_modules = ["lending.domain", "reservation.domain", "shared.domain"]
+forbidden_modules = ["django"]
+

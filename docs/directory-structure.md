@@ -221,7 +221,7 @@ catalog/
 2. **`public.py` がモジュールの唯一の公開面**。関数と DTO(dataclass)だけを公開し、ORM モデルやエンティティをそのまま返さない。
 3. **DB レベルの結合を避ける**: モジュールをまたぐ ForeignKey は張らず、ID(値)のみ保持する。
 4. **結果整合でよい連携はドメインイベント経由**にする(`shared/infrastructure/event_bus.py`)。まずは同期ディスパッチで実装し、必要になったら非同期(Celery 等)に差し替える。
-5. 依存ルールは import-linter などで機械的に強制することを検討する。フラット配置のため共通プレフィックスはないが、モジュール名を列挙した contract で同等のチェックができる。
+5. **依存ルールは import-linter で機械的に強制する**(`pyproject.toml` の `[tool.importlinter]`)。各モジュールを `forbidden` contract で「他モジュールからは `public.py`(と、イベントを購読する側からの `domain.events`)以外 import 禁止」とし、`lending.domain` / `reservation.domain` / `shared.domain` が Django を import しない contract も追加している。フラット配置のため共通プレフィックスはないが、モジュール名を列挙した contract で同等のチェックができる。テストのフィクスチャ(他モジュールの `models` を直接使って前提データを作る)は `ignore_imports` で明示的に許容し、本番コードのみを対象にする。`uv run lint-imports` で実行できる。
 
 ## settings.py での登録
 
