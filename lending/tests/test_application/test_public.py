@@ -7,14 +7,10 @@ from django.test import TestCase
 from lending import public
 from lending.domain.entities import Loan
 from lending.infrastructure.repositories import DjangoLoanRepository
-from shared.infrastructure import event_bus
 
 
 class CountOverdueLoansTests(TestCase):
     def setUp(self) -> None:
-        event_bus.clear_subscribers()
-        self.addCleanup(event_bus.clear_subscribers)
-
         self.member_id = uuid.uuid4()
         self.repository = DjangoLoanRepository()
 

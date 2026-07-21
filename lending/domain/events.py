@@ -1,5 +1,6 @@
 import uuid
 from dataclasses import dataclass
+from datetime import date
 
 from shared.domain.event import DomainEvent
 
@@ -16,6 +17,7 @@ class BookReturned(DomainEvent):
     loan_id: uuid.UUID
     member_id: uuid.UUID
     copy_id: uuid.UUID
+    returned_at: date
 
 
 @dataclass(frozen=True, kw_only=True)

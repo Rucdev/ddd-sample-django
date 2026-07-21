@@ -3,13 +3,13 @@ from datetime import date
 from django.db import transaction
 
 from catalog.public import get_copy
-from lending.application import reservation_gateway
 from lending.application.dto import LoanBookInput, LoanDTO
 from lending.domain.entities import Loan
 from lending.domain.exceptions import CopyNotLoanable, MemberNotLoanable
 from lending.domain.repositories import LoanRepository
 from lending.domain.services import LoanPolicy
 from members.public import get_member
+from reservation.public import get_active_hold_for_copy
 from shared.infrastructure.event_bus import publish
 
 
@@ -33,8 +33,8 @@ class LoanBookUseCase:
             if self._loan_repository.find_active_by_copy(data.copy_id) is not None:
                 raise CopyNotLoanable(data.copy_id, "copy is already on loan")
 
-            holder_id = reservation_gateway.get_holder_for_copy(data.copy_id)
-            if holder_id is not None and holder_id != data.member_id:
+            hold = get_active_hold_for_copy(data.copy_id)
+            if hold is not None and hold.member_id != data.member_id:
                 raise CopyNotLoanable(data.copy_id, "copy is held for another member")
 
             self._policy.ensure_member_can_borrow(data.member_id)

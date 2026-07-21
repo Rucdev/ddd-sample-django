@@ -14,9 +14,6 @@ from shared.infrastructure import event_bus
 
 class ReturnBookUseCaseTests(TestCase):
     def setUp(self) -> None:
-        event_bus.clear_subscribers()
-        self.addCleanup(event_bus.clear_subscribers)
-
         self.repository = FakeLoanRepository()
         self.use_case = ReturnBookUseCase(loan_repository=self.repository)
 
@@ -36,6 +33,7 @@ class ReturnBookUseCaseTests(TestCase):
     def test_publishes_book_returned_event(self) -> None:
         received = []
         event_bus.subscribe(BookReturned, received.append)
+        self.addCleanup(event_bus.unsubscribe, BookReturned, received.append)
 
         self.use_case.execute(ReturnBookInput(loan_id=self.loan.id), today=date(2026, 1, 10))
 

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>予約一覧</title>
+</head>
+<body>
+<h1>予約一覧</h1>
+
+{% if messages %}
+<ul>
+    {% for message in messages %}
+    <li>{{ message }}</li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+<h2>予約登録</h2>
+<form method="post" action="{% url 'reservation:reserve_title' %}">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">予約登録</button>
+</form>
+
+<h2>予約待ち</h2>
+<table border="1" cellpadding="4">
+    <thead>
+    <tr>
+        <th>書誌ID</th>
+        <th>会員ID</th>
+        <th>申込日</th>
+        <th>順位</th>
+        <th></th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for reservation in reservations %}
+    <tr>
+        <td>{{ reservation.title_id }}</td>
+        <td>{{ reservation.member_id }}</td>
+        <td>{{ reservation.requested_at }}</td>
+        <td>{{ reservation.position }}</td>
+        <td>
+            <form
+                method="post"
+                action="{% url 'reservation:cancel_reservation' reservation.title_id reservation.member_id %}"
+                style="display:inline"
+            >
+                {% csrf_token %}
+                <button type="submit">取消</button>
+            </form>
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<h2>取置中</h2>
+<table border="1" cellpadding="4">
+    <thead>
+    <tr>
+        <th>書誌ID</th>
+        <th>蔵書ID</th>
+        <th>会員ID</th>
+        <th>取置期限</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for hold in holds %}
+    <tr>
+        <td>{{ hold.title_id }}</td>
+        <td>{{ hold.copy_id }}</td>
+        <td>{{ hold.member_id }}</td>
+        <td>{{ hold.expires_at }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</body>
+</html>

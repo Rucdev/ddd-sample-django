@@ -14,6 +14,12 @@ def subscribe(event_type: type[E], handler: Handler) -> None:
     _subscribers[event_type].append(handler)
 
 
+def unsubscribe(event_type: type[E], handler: Handler) -> None:
+    handlers = _subscribers.get(event_type)
+    if handlers and handler in handlers:
+        handlers.remove(handler)
+
+
 def publish(events: Iterable[DomainEvent]) -> None:
     for event in events:
         for handler in _subscribers[type(event)]:

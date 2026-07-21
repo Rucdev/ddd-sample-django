@@ -54,7 +54,12 @@ class Loan(Entity):
             raise AlreadyReturned(self.id)
         self.returned_at = today
         self.record_event(
-            BookReturned(loan_id=self.id, member_id=self.member_id, copy_id=self.copy_id)
+            BookReturned(
+                loan_id=self.id,
+                member_id=self.member_id,
+                copy_id=self.copy_id,
+                returned_at=today,
+            )
         )
 
     def renew(self, *, today: date, has_reservation: bool) -> None:

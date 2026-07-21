@@ -12,9 +12,6 @@ from shared.infrastructure import event_bus
 
 class DetectOverdueCommandTests(TestCase):
     def setUp(self) -> None:
-        event_bus.clear_subscribers()
-        self.addCleanup(event_bus.clear_subscribers)
-
         self.repository = DjangoLoanRepository()
 
     def _make_loan(self, *, loaned_at: date) -> Loan:
@@ -27,6 +24,7 @@ class DetectOverdueCommandTests(TestCase):
         loan = self._make_loan(loaned_at=date.today() - timedelta(days=30))
         received = []
         event_bus.subscribe(LoanOverdue, received.append)
+        self.addCleanup(event_bus.unsubscribe, LoanOverdue, received.append)
 
         call_command("detect_overdue")
 
@@ -58,6 +56,7 @@ class DetectOverdueCommandTests(TestCase):
         self._make_loan(loaned_at=date.today() - timedelta(days=30))
         received = []
         event_bus.subscribe(LoanOverdue, received.append)
+        self.addCleanup(event_bus.unsubscribe, LoanOverdue, received.append)
 
         call_command("detect_overdue")
         call_command("detect_overdue")

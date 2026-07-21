@@ -3,10 +3,10 @@ from datetime import date
 from django.db import transaction
 
 from catalog.public import get_copy
-from lending.application import reservation_gateway
 from lending.application.dto import LoanDTO, RenewLoanInput
 from lending.domain.exceptions import LoanNotFound
 from lending.domain.repositories import LoanRepository
+from reservation.public import has_reservation
 from shared.infrastructure.event_bus import publish
 
 
@@ -23,9 +23,9 @@ class RenewLoanUseCase:
                 raise LoanNotFound(data.loan_id)
 
             copy = get_copy(loan.copy_id)
-            has_reservation = reservation_gateway.has_reservation(copy.title_id) if copy else False
+            title_has_reservation = has_reservation(copy.title_id) if copy else False
 
-            loan.renew(today=today, has_reservation=has_reservation)
+            loan.renew(today=today, has_reservation=title_has_reservation)
             self._loan_repository.save(loan)
             publish(loan.collect_events())
 

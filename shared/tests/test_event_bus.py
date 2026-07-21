@@ -54,3 +54,31 @@ class EventBusTests(TestCase):
 
         with self.assertRaises(ValueError):
             event_bus.publish([_EventA()])
+
+    def test_unsubscribe_stops_handler_from_being_called(self) -> None:
+        received: list[DomainEvent] = []
+        event_bus.subscribe(_EventA, received.append)
+
+        event_bus.unsubscribe(_EventA, received.append)
+        event_bus.publish([_EventA()])
+
+        self.assertEqual(received, [])
+
+    def test_unsubscribe_leaves_other_handlers_untouched(self) -> None:
+        received_1: list[DomainEvent] = []
+        received_2: list[DomainEvent] = []
+        event_bus.subscribe(_EventA, received_1.append)
+        event_bus.subscribe(_EventA, received_2.append)
+
+        event_bus.unsubscribe(_EventA, received_1.append)
+        event = _EventA()
+        event_bus.publish([event])
+
+        self.assertEqual(received_1, [])
+        self.assertEqual(received_2, [event])
+
+    def test_unsubscribe_unknown_handler_is_a_no_op(self) -> None:
+        def handler(event: DomainEvent) -> None:
+            pass
+
+        event_bus.unsubscribe(_EventA, handler)  # should not raise

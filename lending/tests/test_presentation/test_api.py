@@ -10,14 +10,10 @@ from catalog.models import Copy, Title
 from lending.domain.entities import Loan
 from lending.infrastructure.repositories import DjangoLoanRepository
 from members.models import Member
-from shared.infrastructure import event_bus
 
 
 class LoanAPITests(TestCase):
     def setUp(self) -> None:
-        event_bus.clear_subscribers()
-        self.addCleanup(event_bus.clear_subscribers)
-
         self.client = APIClient()
         self.member = Member.objects.create(name="Alice", email="alice@example.com")
         self.title = Title.objects.create(name="DDD", author="Evans", isbn="9780321125217")
