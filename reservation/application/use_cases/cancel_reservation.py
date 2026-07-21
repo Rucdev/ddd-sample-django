@@ -6,6 +6,9 @@ from shared.infrastructure.event_bus import publish
 
 
 class CancelReservationUseCase:
+    """予約取消ユースケース。取置(Hold)まで進んだ予約は取消の対象にならない
+    (`ReservationQueue.cancel` 参照)。"""
+
     def __init__(self, repository: ReservationQueueRepository) -> None:
         self._repository = repository
 

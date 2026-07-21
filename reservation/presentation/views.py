@@ -11,6 +11,10 @@ from reservation.infrastructure.repositories import DjangoReservationQueueReposi
 from reservation.presentation.forms import ReserveTitleForm
 
 
+# lending/presentation/views.py と同じ方針: 画面はユースケースを呼ぶだけの薄い View、
+# フォームは形式チェックまで、ドメイン例外は捕まえて messages に変換する。
+
+
 def reservation_list_view(request):
     reservations = list_reservations()
     holds = list_holds()
@@ -44,6 +48,8 @@ def reserve_title_view(request):
 
 @require_http_methods(["POST"])
 def cancel_reservation_view(request, title_id, member_id):
+    # URL は行 ID ではなく (title_id, member_id) で予約を特定する
+    # (reservation/infrastructure/repositories.py の docstring 参照)。
     use_case = CancelReservationUseCase(repository=DjangoReservationQueueRepository())
     try:
         use_case.execute(CancelReservationInput(member_id=member_id, title_id=title_id))

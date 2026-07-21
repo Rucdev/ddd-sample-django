@@ -8,6 +8,10 @@ from shared.infrastructure.event_bus import publish
 
 
 class ExpireHoldsUseCase:
+    """1 つの書誌の取置期限切れを処理するユースケース。`expire_holds` management
+    コマンドが、期限切れの取置を持つ書誌ごとにこれを呼び出す。
+    """
+
     def __init__(self, repository: ReservationQueueRepository) -> None:
         self._repository = repository
 

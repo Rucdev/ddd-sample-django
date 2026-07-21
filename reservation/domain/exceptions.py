@@ -2,6 +2,10 @@ import uuid
 
 from shared.domain.exceptions import ConflictError, DomainError, NotFoundError
 
+# lending と同じパターン: shared.domain.exceptions の NotFoundError / ConflictError も
+# 多重継承しておくことで、shared/infrastructure/exception_handler.py が reservation を
+# 個別に知らなくても 404 / 409 への変換を行える。
+
 
 class ReservationError(DomainError):
     """Base class for reservation domain errors."""

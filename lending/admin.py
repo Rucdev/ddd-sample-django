@@ -5,7 +5,10 @@ from lending.infrastructure.models import LoanModel
 
 @admin.register(LoanModel)
 class LoanModelAdmin(admin.ModelAdmin):
-    """Read-only: state changes must go through the lending use cases, not admin."""
+    """閲覧専用。admin は ORM モデルを直接更新するため、集約の不変条件やドメインイベントを
+    素通りしてしまう。状態を変える操作は必ず画面・API → ユースケース経由で行う
+    (directory-structure.md「Django admin」参照)。
+    """
 
     list_display = ("id", "member_id", "copy_id", "loaned_at", "due_date", "returned_at")
     list_filter = ("returned_at", "overdue_notified")

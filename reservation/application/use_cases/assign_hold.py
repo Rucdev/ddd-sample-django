@@ -8,9 +8,10 @@ from shared.infrastructure.event_bus import publish
 
 
 class AssignHoldUseCase:
-    """Converts the front of a title's reservation queue into a hold on a just-returned copy.
+    """返却されたばかりの蔵書を、待ち行列の先頭の予約者のために取置に変える。
 
-    Triggered by lending's BookReturned event; a no-op if nobody is waiting.
+    lending の `BookReturned` イベント(`reservation/infrastructure/event_handlers.py`)
+    から呼ばれる。誰も待っていなければ何もしない(冪等)。
     """
 
     def __init__(self, repository: ReservationQueueRepository) -> None:

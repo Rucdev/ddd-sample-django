@@ -1,4 +1,8 @@
-"""Read-side queries. Reads the ORM directly instead of going through the repository/entity."""
+"""参照系(CQRS の Q)。リポジトリ/エンティティを経由せず ORM を直読みして DTO に詰め替える。
+
+一覧表示のためだけにエンティティを組み立てるのは過剰なので、参照系は素直に ORM から
+DTO へ変換してよい、というのが directory-structure.md の方針。
+"""
 
 import uuid
 

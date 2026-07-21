@@ -9,6 +9,10 @@ from reservation.infrastructure.repositories import DjangoReservationQueueReposi
 from reservation.presentation.serializers import ReservationSerializer, ReserveTitleSerializer
 
 
+# lending/presentation/api.py と同じく DRF は限定利用(ADR-0001): APIView + 素の
+# Serializer のみ。ModelSerializer / ModelViewSet は使わない。
+
+
 class ReservationListCreateAPIView(APIView):
     def get(self, request):
         return Response(ReservationSerializer(list_reservations(), many=True).data)

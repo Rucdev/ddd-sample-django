@@ -8,6 +8,12 @@ from shared.domain.entity import Entity
 
 
 class Loan(Entity):
+    """貸出。集約ルート。
+
+    「会員が蔵書(個体)1 点を借りている状態」を表す(lending/CONTEXT.md 参照)。
+    貸出は蔵書(copy)単位であり、書誌(title)単位ではない。
+    """
+
     def __init__(
         self,
         *,
@@ -32,6 +38,7 @@ class Loan(Entity):
 
     @classmethod
     def start(cls, *, member_id: uuid.UUID, copy_id: uuid.UUID, loaned_at: date) -> "Loan":
+        """新規貸出を開始する。ID はここで採番する(DB の自動採番に頼ると、保存前のエンティティが ID を持てない)。"""
         loan = cls(
             loan_id=uuid.uuid4(),
             member_id=member_id,
@@ -63,6 +70,12 @@ class Loan(Entity):
         )
 
     def renew(self, *, today: date, has_reservation: bool) -> None:
+        """返却期限を延長する。1 回まで、延滞中、または対象書誌に予約がある場合は延長できない。
+
+        `has_reservation`(対象書誌に予約があるか)は reservation モジュールの公開 API を
+        呼び出し側(application 層)が照会し、判定結果だけを渡してもらう。domain 層は
+        他モジュールに依存しない。
+        """
         if self.is_returned:
             raise AlreadyReturned(self.id)
         if self.renewal_count >= 1:
@@ -75,6 +88,11 @@ class Loan(Entity):
         self.due_date = STANDARD_LOAN_PERIOD.due_date_from(today)
 
     def mark_overdue(self) -> None:
+        """延滞を確定させ `LoanOverdue` イベントを発行する。
+
+        `detect_overdue` コマンドから複数回呼ばれても再発行しないよう、
+        `overdue_notified` フラグで冪等にしている。
+        """
         if self.is_returned:
             raise AlreadyReturned(self.id)
         if self.overdue_notified:

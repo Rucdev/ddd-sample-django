@@ -1,5 +1,9 @@
 from rest_framework import serializers
 
+# 素の Serializer(ModelSerializer ではない)。Form と同じく形式チェックまでが担当。
+# LoanSerializer は LoanDTO(dataclass)を dict 化するために使い、エンティティや
+# ORM モデルを直接シリアライズしない。
+
 
 class LoanBookSerializer(serializers.Serializer):
     member_id = serializers.UUIDField()

@@ -10,6 +10,12 @@ from lending.infrastructure.repositories import DjangoLoanRepository
 from lending.presentation.serializers import LoanBookSerializer, LoanSerializer
 
 
+# DDD アプリでの DRF の使い方(ADR-0001): APIView と素の Serializer だけを使う。
+# ModelSerializer / ModelViewSet は ORM モデルと API を直結させ、ユースケースを
+# 迂回してしまうため使わない(CRUD アプリでは逆に主力として使ってよい)。
+# ドメイン例外 → HTTP ステータスの変換は shared/infrastructure/exception_handler.py に一元化。
+
+
 class LoanListCreateAPIView(APIView):
     def get(self, request):
         loans = list_loans()

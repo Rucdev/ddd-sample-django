@@ -5,6 +5,8 @@ from lending.infrastructure.models import LoanModel
 
 
 class DjangoLoanRepository:
+    """`LoanRepository` の Django ORM 実装。`Loan` エンティティ ⇔ `LoanModel` の変換をここに閉じ込める。"""
+
     def save(self, loan: Loan) -> None:
         LoanModel.objects.update_or_create(
             id=loan.id,
@@ -27,8 +29,9 @@ class DjangoLoanRepository:
         return LoanModel.objects.filter(member_id=member_id, returned_at__isnull=True).count()
 
     def count_overdue_by_member(self, member_id: uuid.UUID) -> int:
-        # overdue_notified is the persisted marker set by the detect_overdue command;
-        # this counts loans that were overdue and are still unreturned.
+        # overdue_notified は detect_overdue コマンドが立てる永続化済みのフラグ。
+        # 「かつて延滞と判定され、まだ返却されていない貸出」の数を数える。
+        # 延滞は検出(バッチ)ベースであり、日付だけで都度判定していない点に注意。
         return LoanModel.objects.filter(
             member_id=member_id, returned_at__isnull=True, overdue_notified=True
         ).count()

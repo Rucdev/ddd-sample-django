@@ -4,7 +4,8 @@ from reservation.infrastructure.models import HoldModel, ReservationModel
 
 
 class _ReadOnlyAdminMixin:
-    """State changes must go through the reservation use cases, not admin."""
+    """状態を変える操作は必ずユースケース経由で行う。admin からの書き込みは禁止する
+    (lending/admin.py と同じ方針)。"""
 
     def has_add_permission(self, request) -> bool:
         return False

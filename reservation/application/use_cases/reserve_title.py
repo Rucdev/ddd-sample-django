@@ -11,6 +11,15 @@ from shared.infrastructure.event_bus import publish
 
 
 class ReserveTitleUseCase:
+    """予約登録ユースケース。
+
+    あえて「対象書誌の全蔵書が貸出中であること」は前提条件にしていない。これを
+    チェックしようとすると reservation → lending への照会が必要になり、lending →
+    reservation(取置・予約有無の照会)と合わせて双方向の依存になってしまう。
+    lending → reservation の一方向に留めるための意図的な割り切り
+    (CONTEXT-MAP.md「Reservation → Lending の依存は意図的に作っていない」参照)。
+    """
+
     def __init__(self, repository: ReservationQueueRepository) -> None:
         self._repository = repository
 

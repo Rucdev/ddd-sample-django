@@ -5,6 +5,10 @@ from datetime import date
 from lending.domain.entities import Loan
 
 
+# 各ユースケースの入力 DTO。presentation 層(Form / Serializer)が形式チェック済みの値を
+# ここに詰め替えてユースケースへ渡す。
+
+
 @dataclass(frozen=True)
 class LoanBookInput:
     member_id: uuid.UUID
@@ -23,6 +27,10 @@ class RenewLoanInput:
 
 @dataclass(frozen=True)
 class LoanDTO:
+    """ユースケースの出力・画面表示用の DTO。エンティティや ORM モデルをそのまま
+    presentation 層に渡さないための境界。
+    """
+
     id: uuid.UUID
     member_id: uuid.UUID
     copy_id: uuid.UUID

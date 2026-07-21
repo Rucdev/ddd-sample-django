@@ -2,6 +2,12 @@ import uuid
 
 from shared.domain.exceptions import ConflictError, DomainError, NotFoundError
 
+# lending 独自の例外は shared.domain.exceptions の NotFoundError / ConflictError も
+# 多重継承しておく。presentation 層(DRF の exception handler)はこの共通基底だけを見て
+# 404 / 409 に変換するので、lending の例外を個別に知らなくて済む(shared → 各モジュール
+# への依存が生まれない)。同時に LendingError を継いでいるので、lending の view/API 側は
+# 「lending のドメイン例外はまとめて捕まえる」という書き方もできる。
+
 
 class LendingError(DomainError):
     """Base class for lending domain errors."""

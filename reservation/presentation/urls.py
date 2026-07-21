@@ -2,6 +2,7 @@ from django.urls import path
 
 from reservation.presentation import api, views
 
+# app_name で名前空間化し、config/urls.py から include() で束ねる。
 app_name = "reservation"
 
 urlpatterns = [

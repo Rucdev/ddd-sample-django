@@ -9,6 +9,10 @@ from shared.infrastructure.event_bus import publish
 
 
 class ReturnBookUseCase:
+    """返却ユースケース。`BookReturned` イベントの発行が、reservation モジュールの
+    取置作成・members モジュールの貸出停止解除のきっかけになる。
+    """
+
     def __init__(self, loan_repository: LoanRepository) -> None:
         self._loan_repository = loan_repository
 

@@ -7,6 +7,17 @@ from reservation.infrastructure.models import HoldModel, ReservationModel
 
 
 class DjangoReservationQueueRepository:
+    """`ReservationQueueRepository` の Django ORM 実装。
+
+    `save()` は集約が持つ予約・取置のリストを、その書誌分だけ一度 delete してから
+    bulk_create で作り直す(差分更新はしない)。待ち行列は数件程度で済む規模のため、
+    集約全体を丸ごと洗い替えるほうが diff ロジックより単純で、実装ミスも起きにくい。
+
+    そのため予約 1 件ごとの DB 上の行 ID は保存のたびに変わりうる。「この予約を取り消す」
+    という操作の URL/API は行 ID ではなく (title_id, member_id) の組をキーにしている
+    (presentation 層・public.py 参照)。
+    """
+
     def find_by_title(self, title_id: uuid.UUID) -> ReservationQueue:
         reservations = [
             Reservation(member_id=model.member_id, requested_at=model.requested_at)
@@ -21,6 +32,7 @@ class DjangoReservationQueueRepository:
         return ReservationQueue(title_id=title_id, reservations=reservations, holds=holds)
 
     def save(self, queue: ReservationQueue) -> None:
+        # 洗い替え: 集約の予約・取置をそのまま作り直す(上のクラス docstring 参照)。
         ReservationModel.objects.filter(title_id=queue.title_id).delete()
         ReservationModel.objects.bulk_create(
             ReservationModel(

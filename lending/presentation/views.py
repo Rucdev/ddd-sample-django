@@ -12,6 +12,12 @@ from lending.infrastructure.repositories import DjangoLoanRepository
 from lending.presentation.forms import LoanBookForm
 
 
+# 画面(Django テンプレート)。DDD アプリでも画面は presentation 層の一部であり、
+# ユースケースを呼び出すだけの薄い View にする。フォームは形式チェックまでを担当し、
+# ビジネスルール違反(ドメイン例外)はここで捕まえて messages に変換する。
+# ユースケースの組み立て(リポジトリの注入)は DI コンテナを使わず View で直接行う。
+
+
 def loan_list_view(request):
     loans = list_loans()
     form = LoanBookForm()

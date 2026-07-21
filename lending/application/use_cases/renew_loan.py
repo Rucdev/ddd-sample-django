@@ -22,6 +22,8 @@ class RenewLoanUseCase:
             if loan is None:
                 raise LoanNotFound(data.loan_id)
 
+            # 対象書誌に予約があるかは reservation モジュールに照会し、判定結果(bool)
+            # だけを domain 層(Loan.renew)に渡す。domain 層は他モジュールを知らない。
             copy = get_copy(loan.copy_id)
             title_has_reservation = has_reservation(copy.title_id) if copy else False
 

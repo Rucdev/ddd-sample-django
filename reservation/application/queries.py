@@ -1,4 +1,4 @@
-"""Read-side queries. Reads the ORM directly instead of going through the repository/aggregate."""
+"""参照系(CQRS の Q)。リポジトリ/集約を経由せず ORM を直読みして DTO に詰め替える。"""
 
 import uuid
 
@@ -25,6 +25,7 @@ def _to_hold_dto(model: HoldModel) -> HoldDTO:
 
 
 def list_reservations() -> list[ReservationDTO]:
+    """全書誌分の予約一覧(画面の一覧表示用)。書誌ごとに申込順で 1 から順位を振り直す。"""
     queryset = ReservationModel.objects.order_by("title_id", "requested_at")
     positions: dict[uuid.UUID, int] = {}
     result = []

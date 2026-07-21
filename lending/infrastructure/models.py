@@ -4,6 +4,13 @@ from django.db import models
 
 
 class LoanModel(models.Model):
+    """`Loan` エンティティの永続化用モデル(ORM モデル)。ドメイン層のエンティティとは
+    あえて別クラスにしており、`DjangoLoanRepository` が相互変換を担う。
+
+    `member_id` / `copy_id` は catalog / members モジュールの ID を値として保持するだけで、
+    ForeignKey は張らない(モジュールをまたぐ DB レベルの結合を避けるため)。
+    """
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     member_id = models.UUIDField(db_index=True)
     copy_id = models.UUIDField(db_index=True)
