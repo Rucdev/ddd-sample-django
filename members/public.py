@@ -12,6 +12,7 @@ class MemberDTO:
     name: str
     email: str
     is_active: bool
+    rank: str  # 会員ランク。`Member.Rank` の値("REGULAR" / "SILVER" / "GOLD")。
 
 
 def _to_dto(member: Member) -> MemberDTO:
@@ -20,6 +21,7 @@ def _to_dto(member: Member) -> MemberDTO:
         name=member.name,
         email=member.email,
         is_active=member.status == Member.Status.ACTIVE,
+        rank=member.rank,
     )
 
 

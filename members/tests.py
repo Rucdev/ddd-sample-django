@@ -29,6 +29,11 @@ class MemberModelTests(TestCase):
 
         self.assertEqual(member.status, Member.Status.ACTIVE)
 
+    def test_default_rank_is_regular(self) -> None:
+        member = Member.objects.create(name="Alice", email="alice@example.com")
+
+        self.assertEqual(member.rank, Member.Rank.REGULAR)
+
 
 class PublicApiTests(TestCase):
     def setUp(self) -> None:
@@ -40,9 +45,20 @@ class PublicApiTests(TestCase):
         assert dto is not None
         self.assertEqual(dto.name, "Alice")
         self.assertTrue(dto.is_active)
+        self.assertEqual(dto.rank, Member.Rank.REGULAR)
 
     def test_get_member_returns_none_when_not_found(self) -> None:
         self.assertIsNone(public.get_member(uuid.uuid4()))
+
+    def test_get_member_returns_dto_with_member_rank(self) -> None:
+        gold_member = Member.objects.create(
+            name="Bob", email="bob@example.com", rank=Member.Rank.GOLD
+        )
+
+        dto = public.get_member(gold_member.id)
+
+        assert dto is not None
+        self.assertEqual(dto.rank, Member.Rank.GOLD)
 
     def test_suspend_member_flips_status(self) -> None:
         public.suspend_member(self.member.id)

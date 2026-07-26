@@ -8,6 +8,7 @@ from lending.domain.entities import Loan
 from lending.domain.exceptions import CopyNotLoanable, MemberNotLoanable
 from lending.domain.repositories import LoanRepository
 from lending.domain.services import LoanPolicy
+from lending.domain.value_objects import loan_terms_for_rank
 from members.public import get_member
 from reservation.public import get_active_hold_for_copy
 from shared.infrastructure.event_bus import publish
@@ -23,7 +24,6 @@ class LoanBookUseCase:
 
     def __init__(self, loan_repository: LoanRepository) -> None:
         self._loan_repository = loan_repository
-        self._policy = LoanPolicy(loan_repository)
 
     def execute(self, data: LoanBookInput, *, today: date | None = None) -> LoanDTO:
         today = today or date.today()
@@ -47,9 +47,17 @@ class LoanBookUseCase:
             if hold is not None and hold.member_id != data.member_id:
                 raise CopyNotLoanable(data.copy_id, "copy is held for another member")
 
-            self._policy.ensure_member_can_borrow(data.member_id)
+            # 貸出上限・貸出期間は会員ランクに応じて変わる(members.public.MemberDTO.rank)。
+            loan_terms = loan_terms_for_rank(member.rank)
+            policy = LoanPolicy(self._loan_repository, limit=loan_terms.loan_limit)
+            policy.ensure_member_can_borrow(data.member_id)
 
-            loan = Loan.start(member_id=data.member_id, copy_id=data.copy_id, loaned_at=today)
+            loan = Loan.start(
+                member_id=data.member_id,
+                copy_id=data.copy_id,
+                loaned_at=today,
+                loan_period=loan_terms.loan_period,
+            )
             self._loan_repository.save(loan)
             # 集約が保持していたイベントを取り出して発行する。同一トランザクション内で
             # 同期的にハンドラが呼ばれるため、ハンドラが失敗すれば貸出自体もロールバックされる。
