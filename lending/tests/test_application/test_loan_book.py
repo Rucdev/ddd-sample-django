@@ -135,3 +135,45 @@ class LoanBookUseCaseTests(TestCase):
                 LoanBookInput(member_id=self.member.id, copy_id=self.copy.id),
                 today=date(2026, 1, 2),
             )
+
+    def test_silver_member_gets_a_21_day_due_date(self) -> None:
+        self.member.rank = Member.Rank.SILVER
+        self.member.save()
+
+        result = self.use_case.execute(
+            LoanBookInput(member_id=self.member.id, copy_id=self.copy.id),
+            today=date(2026, 1, 1),
+        )
+
+        self.assertEqual(result.due_date, date(2026, 1, 22))
+
+    def test_gold_member_can_borrow_a_10th_book(self) -> None:
+        self.member.rank = Member.Rank.GOLD
+        self.member.save()
+        for _ in range(9):
+            loan = Loan.start(
+                member_id=self.member.id, copy_id=uuid.uuid4(), loaned_at=date(2026, 1, 1)
+            )
+            self.repository.save(loan)
+
+        result = self.use_case.execute(
+            LoanBookInput(member_id=self.member.id, copy_id=self.copy.id),
+            today=date(2026, 1, 2),
+        )
+
+        self.assertEqual(result.due_date, date(2026, 1, 23))
+
+    def test_gold_member_rejected_at_11th_book(self) -> None:
+        self.member.rank = Member.Rank.GOLD
+        self.member.save()
+        for _ in range(10):
+            loan = Loan.start(
+                member_id=self.member.id, copy_id=uuid.uuid4(), loaned_at=date(2026, 1, 1)
+            )
+            self.repository.save(loan)
+
+        with self.assertRaises(LoanLimitExceeded):
+            self.use_case.execute(
+                LoanBookInput(member_id=self.member.id, copy_id=self.copy.id),
+                today=date(2026, 1, 2),
+            )

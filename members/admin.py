@@ -5,6 +5,6 @@ from members.models import Member
 
 @admin.register(Member)
 class MemberAdmin(admin.ModelAdmin):
-    list_display = ("name", "email", "status")
-    list_filter = ("status",)
+    list_display = ("name", "email", "status", "rank")
+    list_filter = ("status", "rank")
     search_fields = ("name", "email")

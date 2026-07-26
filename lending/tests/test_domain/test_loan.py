@@ -5,7 +5,7 @@ from unittest import TestCase
 from lending.domain.entities import Loan
 from lending.domain.events import BookLoaned, BookReturned, LoanOverdue
 from lending.domain.exceptions import AlreadyReturned, RenewalNotAllowed
-from lending.domain.value_objects import STANDARD_LOAN_DAYS
+from lending.domain.value_objects import STANDARD_LOAN_DAYS, LoanPeriod
 
 
 def _make_loan() -> Loan:
@@ -19,6 +19,18 @@ class LoanStartTests(TestCase):
         loan = Loan.start(member_id=uuid.uuid4(), copy_id=uuid.uuid4(), loaned_at=loaned_at)
 
         self.assertEqual(loan.due_date, loaned_at + timedelta(days=STANDARD_LOAN_DAYS))
+
+    def test_start_uses_the_given_loan_period(self) -> None:
+        loaned_at = date(2026, 1, 1)
+
+        loan = Loan.start(
+            member_id=uuid.uuid4(),
+            copy_id=uuid.uuid4(),
+            loaned_at=loaned_at,
+            loan_period=LoanPeriod(days=21),
+        )
+
+        self.assertEqual(loan.due_date, loaned_at + timedelta(days=21))
 
     def test_start_records_book_loaned_event(self) -> None:
         member_id, copy_id = uuid.uuid4(), uuid.uuid4()
@@ -69,6 +81,14 @@ class LoanRenewTests(TestCase):
 
         self.assertGreater(loan.due_date, original_due)
         self.assertEqual(loan.renewal_count, 1)
+
+    def test_renew_uses_the_given_loan_period(self) -> None:
+        loan = _make_loan()
+        renewed_from = date(2026, 1, 10)
+
+        loan.renew(today=renewed_from, has_reservation=False, loan_period=LoanPeriod(days=21))
+
+        self.assertEqual(loan.due_date, renewed_from + timedelta(days=21))
 
     def test_renew_twice_raises(self) -> None:
         loan = _make_loan()

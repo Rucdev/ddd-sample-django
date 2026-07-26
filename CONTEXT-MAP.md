@@ -11,7 +11,8 @@
 
 ## Relationships
 
-- **Lending → Members**: `LoanOverdue` イベントを発行し、Members が会員を貸出停止にする
+- **Lending → Members(イベント)**: `LoanOverdue` イベントを発行し、Members が会員を貸出停止にする
+- **Lending → Members(照会)**: 貸出条件(貸出上限冊数・貸出期間)は会員ランクによって変わるため、Lending が貸出・延長のたびに Members の公開 API(`get_member`)に照会し、`MemberDTO.rank` から貸出条件を引き当てる(`lending/domain/value_objects.py` の `loan_terms_for_rank`)
 - **Lending → Reservation(イベント)**: `BookReturned` イベントを発行し、Reservation が予約待ち行列の先頭会員のために取置を作る(`reservation/apps.py` の `ready()` で購読)
 - **Lending → Reservation(照会)**: 取置中の蔵書は取置対象の会員にしか貸し出せない/予約ありの書誌は延長できない、というルールのため、Lending が貸出・延長のたびに Reservation の公開 API(`get_active_hold_for_copy` / `has_reservation`)に照会する
 - **Lending / Reservation → Catalog, Members**: 書誌 ID・蔵書 ID・会員 ID を値として保持し、必要時に公開 API で照会する(モジュールをまたぐ ForeignKey は張らない)

@@ -9,6 +9,7 @@ from lending.application.use_cases.renew_loan import RenewLoanUseCase
 from lending.domain.entities import Loan
 from lending.domain.exceptions import LoanNotFound, RenewalNotAllowed
 from lending.tests.test_application.fakes import FakeLoanRepository
+from members.models import Member
 from reservation.infrastructure.models import ReservationModel
 
 
@@ -35,6 +36,18 @@ class RenewLoanUseCaseTests(TestCase):
 
         self.assertGreater(result.due_date, original_due)
         self.assertEqual(result.renewal_count, 1)
+
+    def test_extends_due_date_by_21_days_for_silver_member(self) -> None:
+        member = Member.objects.create(
+            name="Alice", email="alice@example.com", rank=Member.Rank.SILVER
+        )
+        loan = Loan.start(member_id=member.id, copy_id=uuid.uuid4(), loaned_at=date(2026, 1, 1))
+        loan.collect_events()
+        self.repository.save(loan)
+
+        result = self.use_case.execute(RenewLoanInput(loan_id=loan.id), today=date(2026, 1, 10))
+
+        self.assertEqual(result.due_date, date(2026, 1, 31))
 
     def test_raises_for_unknown_loan(self) -> None:
         with self.assertRaises(LoanNotFound):

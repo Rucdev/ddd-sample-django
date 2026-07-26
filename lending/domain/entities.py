@@ -3,7 +3,7 @@ from datetime import date
 
 from lending.domain.events import BookLoaned, BookReturned, LoanOverdue
 from lending.domain.exceptions import AlreadyReturned, RenewalNotAllowed
-from lending.domain.value_objects import STANDARD_LOAN_PERIOD
+from lending.domain.value_objects import STANDARD_LOAN_PERIOD, LoanPeriod
 from shared.domain.entity import Entity
 
 
@@ -37,14 +37,25 @@ class Loan(Entity):
         self.overdue_notified = overdue_notified
 
     @classmethod
-    def start(cls, *, member_id: uuid.UUID, copy_id: uuid.UUID, loaned_at: date) -> "Loan":
-        """新規貸出を開始する。ID はここで採番する(DB の自動採番に頼ると、保存前のエンティティが ID を持てない)。"""
+    def start(
+        cls,
+        *,
+        member_id: uuid.UUID,
+        copy_id: uuid.UUID,
+        loaned_at: date,
+        loan_period: LoanPeriod = STANDARD_LOAN_PERIOD,
+    ) -> "Loan":
+        """新規貸出を開始する。ID はここで採番する(DB の自動採番に頼ると、保存前のエンティティが ID を持てない)。
+
+        `loan_period` は会員ランクに応じた貸出期間(lending.domain.value_objects.loan_terms_for_rank
+        参照)。呼び出し側(application 層)が会員ランクから引き当てて渡す。
+        """
         loan = cls(
             loan_id=uuid.uuid4(),
             member_id=member_id,
             copy_id=copy_id,
             loaned_at=loaned_at,
-            due_date=STANDARD_LOAN_PERIOD.due_date_from(loaned_at),
+            due_date=loan_period.due_date_from(loaned_at),
         )
         loan.record_event(BookLoaned(loan_id=loan.id, member_id=member_id, copy_id=copy_id))
         return loan
@@ -69,12 +80,19 @@ class Loan(Entity):
             )
         )
 
-    def renew(self, *, today: date, has_reservation: bool) -> None:
+    def renew(
+        self,
+        *,
+        today: date,
+        has_reservation: bool,
+        loan_period: LoanPeriod = STANDARD_LOAN_PERIOD,
+    ) -> None:
         """返却期限を延長する。1 回まで、延滞中、または対象書誌に予約がある場合は延長できない。
 
         `has_reservation`(対象書誌に予約があるか)は reservation モジュールの公開 API を
         呼び出し側(application 層)が照会し、判定結果だけを渡してもらう。domain 層は
-        他モジュールに依存しない。
+        他モジュールに依存しない。`loan_period` も同様に、会員ランクに応じた貸出期間を
+        呼び出し側が引き当てて渡す。
         """
         if self.is_returned:
             raise AlreadyReturned(self.id)
@@ -85,7 +103,7 @@ class Loan(Entity):
         if has_reservation:
             raise RenewalNotAllowed(self.id, "title has a pending reservation")
         self.renewal_count += 1
-        self.due_date = STANDARD_LOAN_PERIOD.due_date_from(today)
+        self.due_date = loan_period.due_date_from(today)
 
     def mark_overdue(self) -> None:
         """延滞を確定させ `LoanOverdue` イベントを発行する。
