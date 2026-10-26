@@ -1,6 +1,6 @@
 # 実装計画
 
-図書館の貸出管理システム(モジュラモノリス、DDD + CRUD 同居)の実装計画。
+カフェのモバイルオーダー(モジュラモノリス、DDD + CRUD 同居)の実装計画。題材は図書館の貸出管理から切り替えた([ADR-0002](./adr/0002-switch-domain-to-cafe-mobile-order.md))。図書館版の計画とコードは git の履歴から参照できる。
 
 **前提資料**(実装前に必読):
 
@@ -8,112 +8,73 @@
 - [CONTEXT-MAP.md](../CONTEXT-MAP.md) — コンテキスト一覧とモジュール間関係
 - 各モジュールの `CONTEXT.md` — 用語集(コード内の命名はここに従う)
 - [ADR-0001](./adr/0001-drf-limited-use.md) — DRF の限定利用ルール
+- [ADR-0003](./adr/0003-query-side-uses-drf-generics-and-django-filter.md) — 参照系での DRF 汎用 View と django-filter の利用
 
 **ドメインの仕様値**(各 CONTEXT.md より):
 
-- 貸出上限: 同時 5 冊 / 返却期限: 貸出日から 14 日 / 延長: 1 回まで、延滞中・対象書誌に予約ありの場合は不可
-- 取置期限: 取置成立から 7 日 / 延滞発生 → 会員停止、延滞中の貸出がすべて返却されたら停止解除
+- 数量: 1 明細あたり 1〜10 個 / 進行中の注文: 1 人 3 件まで
+- 割引率: 一般 0% / シルバー 5% / ゴールド 10%(1 円未満切り捨て)
+- キャンセル: 受付済(調理開始前)のみ / ポイント: 支払額 100 円につき 1 ポイント
 
 **共通ルール**:
 
 - テストは Django 標準のテストランナー(`python manage.py test`)を使う。追加依存を増やさない。
-- domain 層のテストは DB 不要で書く(`SimpleTestCase` または素の `unittest.TestCase`)。
-- 各フェーズの完了条件: そのフェーズのテストが全部通り、`python manage.py migrate && python manage.py runserver` が動くこと。
-- コミットはフェーズ内のステップごとに分ける。
+- domain 層のテストは DB 不要で書く(素の `unittest.TestCase`)。
+- ルールを時刻に依存させない(期限・定期実行のバッチを持ち込まない)。
 
 ---
 
 ## Phase 0: 基盤整備
 
-1. **依存追加**: `uv add djangorestframework`
-2. **settings.py**: `INSTALLED_APPS` に `rest_framework` を追加。`TEMPLATES` の `APP_DIRS: True` を確認。
-3. **共有カーネル `shared/` を作成**(Django 非依存の純粋 Python。Django アプリにはしない):
-   - `shared/domain/entity.py` — `Entity` 基底クラス(ID による同一性)。集約ルートが発行したドメインイベントを溜める `record_event()` / `collect_events()` を持たせる
-   - `shared/domain/value_object.py` — `ValueObject` 基底(frozen dataclass ベース、値による等価性)
-   - `shared/domain/event.py` — `DomainEvent` 基底(発生時刻を持つ frozen dataclass)
-   - `shared/infrastructure/event_bus.py` — 同期イベントバス。`subscribe(event_type, handler)` / `publish(events)` のモジュールレベル関数。ハンドラ内の例外は握りつぶさずそのまま伝播させる(同一トランザクションでロールバックさせるため)
-4. **shared のテスト**: `shared/tests/` にイベントバスの購読・発行、Entity の等価性のテスト
-5. **`config/settings.py` にテスト実行確認**: `python manage.py test shared`
+`shared/`(Entity / ValueObject / DomainEvent / 同期イベントバス / DRF の例外ハンドラ)は図書館版から変更なしで流用する。
 
-## Phase 1: CRUD アプリ(catalog / members)
+## Phase 1: CRUD アプリ(menu / customers)
 
-Django 標準構成。DDD の作法は持ち込まない(directory-structure.md「CRUD アプリの構成」参照)。
+1. **menu のモデル**: `Category`(`name`, `display_order`)、`MenuItem`(`category = FK(Category)`(同一モジュール内なので FK 可)、`name`, `price`(円の整数), `status`(`ON_SALE` 販売中 / `SOLD_OUT` 品切れ))
+2. **customers のモデル**: `Customer`(`name`, `email`, `user = OneToOneField(User, null=True)`, `status`(`ACTIVE` / `SUSPENDED`), `rank`(`REGULAR` / `SILVER` / `GOLD`), `points`)
+3. **admin 登録**: 両アプリとも admin を主戦力にする
+4. **public.py**: `menu.public.get_menu_item` / `list_available_menu_items`、`customers.public.get_customer` / `add_points`
+5. **デモデータ**: `fixtures/demo.json`(固定 UUID の会員・商品)
 
-1. `python manage.py startapp catalog` / `startapp members`(既存の `CONTEXT.md` があるディレクトリに生成する。`startapp` が拒否する場合は一時退避して戻す)
-2. **catalog のモデル**(`catalog/models.py`):
-   - `Title` — 書誌。`name`, `author`, `isbn`
-   - `Copy` — 蔵書(個体)。`title = FK(Title)`(同一モジュール内なので FK 可)、`copy_number`, `status`(`ACTIVE` 所蔵中 / `WITHDRAWN` 除籍。TextChoices)
-3. **members のモデル**(`members/models.py`):
-   - `Member` — 会員。`name`, `email`, `user = OneToOneField(settings.AUTH_USER_MODEL, null=True)`(認証は auth に委譲。同一モジュール扱いなので FK 可)、`status`(`ACTIVE` 有効 / `SUSPENDED` 停止)
-4. **admin 登録**: 両アプリとも admin を主戦力にする。一覧・検索・フィルタを設定
-5. **public.py**(他モジュールへの公開面。dataclass の DTO を返し、ORM モデルを返さない):
-   - `catalog/public.py` — `get_copy(copy_id) -> CopyDTO | None`(書誌名・所蔵状態を含む)、`get_title(title_id) -> TitleDTO | None`
-   - `members/public.py` — `get_member(member_id) -> MemberDTO | None`、`suspend_member(member_id)`、`reinstate_member(member_id)`
-6. **migrations 作成・テスト**: モデルと public.py のテストを書く(`tests.py` で可)
+## Phase 2: ordering(DDD コア)
 
-## Phase 2: lending(DDD コア)
+1. **domain 層**(Django import 禁止):
+   - `value_objects.py` — `Money`, `DiscountRate`(+ ランク → 割引率の表 `discount_rate_for_rank`), `OrderLine`(数量 1〜10 を `__post_init__` で検証), `OrderStatus`
+   - `entities.py` — `Order` 集約ルート。`place()`(明細が空なら `EmptyOrder`)、`start_preparing()`, `mark_ready()`, `pick_up()`, `cancel()`。金額は `subtotal` / `discount` / `total` プロパティ
+   - `events.py` — `OrderPlaced`(明細の商品名・数量を運ぶ), `OrderCancelled`, `OrderPickedUp`(支払額を運ぶ)
+   - `services.py` — `OrderPolicy`: 進行中の注文数の上限チェック(リポジトリの集計を使う)
+2. **infrastructure 層**: `OrderModel` + `OrderLineModel`(明細は別テーブル。注文時点の商品名・単価をスナップショット)、`DjangoOrderRepository`
+3. **application 層**: `place_order`(会員・商品を public API で照会 → 明細生成 → 上限チェック → 割引率決定 → 保存 → イベント発行)、`cancel_order`、`pick_up_order`、`start_preparing` / `mark_ready`(kitchen のイベントから呼ばれる)、`queries.py`
+4. **presentation 層**: 注文画面(販売中の商品ごとに数量欄を動的に生やす Form)と API(`APIView` + 素の `Serializer`)
 
-directory-structure.md「DDD ベースのアプリの構成」のレイヤ構成に従う。**このフェーズでは reservation は存在しない**ため、予約に関わるチェックは「予約なし」を返すスタブ関数を application 層に置き、Phase 3 で差し替える(TODO コメントを残す)。
+## Phase 3: kitchen(DDD)
 
-1. アプリ雛形: `startapp lending` 後、`domain/` `application/` `infrastructure/` `presentation/` `templates/lending/` `tests/` を作る。直下 `models.py` は `from .infrastructure.models import *  # noqa` のみ
-2. **domain 層**(Django import 禁止):
-   - `entities.py` — `Loan` 集約ルート。`loan_id`, `member_id`, `copy_id`, `loaned_at`, `due_date`, `returned_at`, `renewal_count`。振る舞い: `return_book()`, `renew(has_reservation: bool)`(1 回まで・延滞中不可・予約あり不可)、`is_overdue(today)`, `mark_overdue()`。状態変更時に対応イベントを `record_event()`
-   - `value_objects.py` — `LoanPeriod`(標準 14 日、due date 算出)
-   - `events.py` — `BookLoaned`, `BookReturned`, `LoanOverdue`(member_id / copy_id / loan_id を運ぶ)
-   - `exceptions.py` — `LoanLimitExceeded`, `RenewalNotAllowed`, `MemberNotLoanable`, `CopyNotLoanable`, `AlreadyReturned`
-   - `repositories.py` — `LoanRepository` Protocol: `save`, `find_by_id`, `count_active_by_member`, `count_overdue_by_member`, `find_active_by_copy`
-   - `services.py` — `LoanPolicy`: 貸出可否判定(上限 5 冊チェックなど、リポジトリの count を使う判定)
-3. **infrastructure 層**: `models.py` に `LoanModel`(member_id / copy_id は FK ではなく UUID/整数カラム。**モジュール間 FK 禁止**)。`repositories.py` に `DjangoLoanRepository`(ORM ⇔ `Loan` エンティティ変換)
-4. **application 層**:
-   - `dto.py` — 入出力 DTO(`LoanBookInput`, `LoanDTO` など)
-   - `use_cases/loan_book.py` — 会員有効チェック(`members.public`)→ 蔵書所蔵中チェック(`catalog.public`)→ 貸出中でないか → 上限チェック(`LoanPolicy`)→ 取置チェック(スタブ)→ `Loan` 生成・保存 → イベント発行。全体を `transaction.atomic()` で包む
-   - `use_cases/return_book.py` / `use_cases/renew_loan.py` — 同様の構え。renew は書誌への予約有無(スタブ)を bool で domain に渡す
-   - `queries.py` — 貸出一覧・会員別貸出(ORM 直読み → DTO)
-5. **presentation 層**:
-   - 画面: 貸出一覧(`loan_list.html`)、貸出登録フォーム、返却・延長ボタン。Form は形式チェックのみ、ドメイン例外は捕まえて `messages` へ
-   - API: `api.py` に `APIView` で `POST /api/loans`, `POST /api/loans/<id>/return`, `POST /api/loans/<id>/renew`, `GET /api/loans`。素の `Serializer` のみ使用(ADR-0001)
-   - ドメイン例外 → HTTP の変換: `shared/infrastructure/exception_handler.py` に DRF custom exception handler を作り settings に登録(`LoanLimitExceeded` 等 → 409、`NotFound` 系 → 404)
-   - `urls.py`(`app_name = "lending"`)を作り `config/urls.py` に `include`
-6. **延滞検出**: management command `detect_overdue`(`lending/management/commands/`)。期限超過かつ未返却の貸出に `mark_overdue()` → `LoanOverdue` 発行。冪等にする(検出済みフラグ `overdue_notified` を持たせる)
-7. **public.py**: `count_overdue_loans(member_id) -> int`(Phase 4 で members の停止解除判定に使う)
-8. **テスト**: domain 単体(DB なしで上限・延長・延滞ルール)/ application(インメモリのフェイクリポジトリで各ユースケース)/ presentation(test client で画面・API の正常系 + ドメイン例外 → 4xx)
+1. **domain 層**: `Ticket` 集約ルート(`open()`, `start_cooking()`, `complete()`, `cancel()`)、`TicketItem`、`CookingStarted` / `CookingCompleted`
+2. **infrastructure 層**: `TicketModel`(明細は JSONField。ordering の別テーブル方式との比較用)、`DjangoTicketRepository`
+3. **イベント購読**: `OrderPlaced` → チケット作成(冪等)、`OrderCancelled` → チケット取消
+4. **presentation**: キッチン画面(調理開始・調理完了ボタン)と API
 
-## Phase 3: reservation(DDD)
+## Phase 4: モジュール間連携の仕上げ
 
-lending と同じレイヤ構成。
+1. **ordering のイベント購読**: `CookingStarted` → 調理中、`CookingCompleted` → 受取可
+2. **customers のイベント購読**: `OrderPickedUp` → ポイント加算
+3. **結合テスト**: 本番の購読配線を通して「注文 → チケット → 調理 → 受取 → ポイント」「キャンセル → チケット取消」「調理開始後はキャンセル不可」を確認(`kitchen/tests/test_application/test_order_flow_integration.py`)
+4. **import-linter**: 各モジュールは他モジュールの `public`(とイベントを購読する側からの `domain.events`)以外を import 禁止。ordering ↔ kitchen はイベントのみ。ドメイン層の Django 非依存
+5. **最終確認**: 全テスト + `lint-imports` + README の「画面で一通り動かす」の手順
 
-1. **domain 層**:
-   - `entities.py` — `ReservationQueue` 集約ルート(`title_id` 単位)。予約(`member_id`, 申込順)のリストと取置(`Hold`: `copy_id`, `member_id`, `expires_at`)を保持。振る舞い: `add_reservation(member_id)`(同一会員の重複予約は不可)、`cancel(member_id)`、`assign_hold(copy_id, today)`(先頭の予約を取置に変換、期限 = 7 日後)、`expire_holds(today)`(失効 → 次の予約者へ、いなければ取置消滅)
-   - `events.py` — `HoldReady`, `HoldExpired`
-   - `exceptions.py`, `repositories.py`(`ReservationQueueRepository`)
-2. **infrastructure 層**: `ReservationModel` / `HoldModel`(title_id / member_id / copy_id は ID カラム)。リポジトリが `ReservationQueue` を組み立てる
-3. **application 層**: `reserve_title`(会員有効チェック + 貸出中の書誌のみ予約可)、`cancel_reservation`、`expire_holds`(management command `expire_holds` から呼ぶ)、`queries.py`(予約一覧)
-4. **イベント購読**: `apps.py` の `ready()` で `BookReturned` を購読 → 返却された copy の書誌に予約待ちがいれば `assign_hold` → `HoldReady` 発行
-5. **public.py**: `get_active_hold_for_copy(copy_id) -> HoldDTO | None`、`has_reservation(title_id) -> bool`
-6. **lending のスタブ差し替え**: Phase 2 で置いた取置チェック・予約有無チェックを `reservation.public` 呼び出しに置換(取置中の蔵書は対象会員のみ貸出可 / 予約ありの書誌は延長不可)。lending のテストに連携ケースを追加
-7. **presentation**: 予約一覧画面 + `POST /api/reservations`, `DELETE /api/reservations/<id>` 最小限
-8. **テスト**: domain(待ち行列順序・取置期限)/ application / BookReturned → 取置のイベント連携テスト
+## Phase 5: inventory(CRUD + services)
 
-## Phase 4: モジュール間連携の仕上げと固め
-
-1. **members のイベント購読**(`members/apps.py` の `ready()`):
-   - `LoanOverdue` → `suspend_member`
-   - `BookReturned` → `lending.public.count_overdue_loans(member_id)` が 0 なら `reinstate_member`
-   - モジュール間連携の結合テスト(延滞 → 停止 → 全返却 → 解除、返却 → 取置 → 期限切れ → 次の予約者)
-2. **トップページ**: 各画面への簡易ナビ(`config` 直下または shared のテンプレートで可)
-3. **import-linter 導入**: `uv add --dev import-linter`。契約:
-   - 各モジュール(lending / reservation / catalog / members)は他モジュールの `public` 以外を import 禁止(forbidden contract をモジュール名列挙で)
-   - `lending.domain` / `reservation.domain` / `shared.domain` は `django` を import 禁止
-   - CI 相当として `lint-imports` をテスト手順に追記
-4. **README 更新**: プロジェクト概要、セットアップ手順(`uv sync` → `migrate` → `createsuperuser` → `runserver`)、ドキュメントへのリンク、モジュール一覧
-5. **最終確認**: 全テスト + `lint-imports` + 手動シナリオ(会員登録 → 蔵書登録 → 貸出 → 予約 → 返却 → 取置 → 延滞 → 停止)
+1. **menu の在庫切れフラグ**: `MenuItem.out_of_stock`(inventory だけが書く。admin では読み取り専用)。注文できる = 販売中 かつ 在庫切れでない。`menu.public.set_out_of_stock` を追加
+2. **モデル**: `Kit`(`menu_item_id` 一意、実在庫・予約数・管理中/管理停止、DB 制約で 実在庫 ≥ 予約数)、`Reservation`(確保中 → 使用済 / 取消)、`StockMovement`(在庫ログ)
+3. **services.py**: 入庫・出庫・予約の確保/使用/取消・管理停止/再開・注文での消費/戻し。条件付き UPDATE で売り越しを防ぎ、在庫ログと在庫切れフラグを同じトランザクションで更新する
+4. **ordering との連携**: `PlaceOrderUseCase` が `inventory.public.allocate_for_order` を呼び、`InsufficientStock` を `OutOfStock`(409)に詰め替える。`OrderCancelled` を inventory が購読して戻す
+5. **画面・API**: キットの登録・名前の編集と閲覧は admin、在庫数を動かす操作は専用画面(`/inventory/`)と API(`/inventory/api/`。ViewSet + `@action`、削除なし)
 
 ---
 
 ## 実装時の注意(ハマりどころ)
 
-- `AppConfig.ready()` でのイベント購読は import 副作用に注意。ハンドラは遅延 import(関数内 import)で循環参照を避ける。
-- `startapp` は既存ディレクトリに対して実行できない場合がある。`CONTEXT.md` を一時退避するか、手で雛形を作る。
-- イベントバスはモジュールレベルのシングルトン。テストでは `setUp` で購読をリセットできる仕組み(`clear_subscribers()`)を入れておく。
-- 同期イベントハンドラはユースケースの `transaction.atomic()` 内で走る。ハンドラ失敗 = 全体ロールバックが今回の仕様(directory-structure.md 参照)。
-- ドメインエンティティの ID は UUID を使う(`uuid4` をエンティティ生成時に採番し、ORM 側は `UUIDField(primary_key=True)`)。DB の自動採番に依存すると「保存前のエンティティが ID を持てない」問題に当たる。
+- `AppConfig.ready()` でのイベント購読は import 副作用に注意。ハンドラは遅延 import(関数内 import)で循環参照を避ける。ordering と kitchen は互いのイベントを購読し合うので特に注意。
+- 同期イベントハンドラはユースケースの `transaction.atomic()` 内で走る。ハンドラ失敗 = 全体ロールバックが今回の仕様(例: チケットの取消に失敗したら注文のキャンセルも戻る)。
+- モジュール単体のテストで本物の購読が邪魔になる場合(kitchen のテストで ordering 側の注文が存在しない等)は、`event_bus.unsubscribe` で一時的に外し、`addCleanup` で戻す。
+- ドメインエンティティの ID は UUID を使う(エンティティ生成時に `uuid4` で採番)。

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>キッチン</title>
+</head>
+<body>
+<h1>キッチン</h1>
+<p><a href="{% url 'home' %}">トップへ</a> / <a href="{% url 'ordering:order_list' %}">注文画面へ</a></p>
+
+{% if messages %}
+<ul>
+    {% for message in messages %}
+    <li>{{ message }}</li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+<h2>調理待ち・調理中のチケット</h2>
+<table border="1" cellpadding="4">
+    <thead>
+    <tr>
+        <th>注文ID</th>
+        <th>作るもの</th>
+        <th>状態</th>
+        <th></th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for ticket in tickets %}
+    <tr>
+        <td>{{ ticket.order_id }}</td>
+        <td>
+            {% for item in ticket.items %}
+            {{ item.name }} × {{ item.quantity }}{% if not forloop.last %}<br>{% endif %}
+            {% endfor %}
+        </td>
+        <td>{% if ticket.status == "QUEUED" %}調理待ち{% else %}調理中{% endif %}</td>
+        <td>
+            {% if ticket.status == "QUEUED" %}
+            <form method="post" action="{% url 'kitchen:start_cooking' ticket.id %}" style="display:inline">
+                {% csrf_token %}
+                <button type="submit">調理開始</button>
+            </form>
+            {% else %}
+            <form method="post" action="{% url 'kitchen:complete_cooking' ticket.id %}" style="display:inline">
+                {% csrf_token %}
+                <button type="submit">調理完了</button>
+            </form>
+            {% endif %}
+        </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="4">チケットはありません</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</body>
+</html>

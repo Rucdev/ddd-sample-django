@@ -14,8 +14,7 @@ class _EventB(DomainEvent):
 
 class EventBusTests(TestCase):
     def setUp(self) -> None:
-        event_bus.clear_subscribers()
-        self.addCleanup(event_bus.clear_subscribers)
+        self.enterContext(event_bus.isolated_subscribers())
 
     def test_publish_calls_subscribed_handler(self) -> None:
         received: list[DomainEvent] = []
@@ -82,3 +81,27 @@ class EventBusTests(TestCase):
             pass
 
         event_bus.unsubscribe(_EventA, handler)  # should not raise
+
+
+class IsolatedSubscribersTests(TestCase):
+    def test_subscribers_outside_are_hidden_inside_and_restored_on_exit(self) -> None:
+        received: list[DomainEvent] = []
+        event_bus.subscribe(_EventA, received.append)
+        self.addCleanup(event_bus.unsubscribe, _EventA, received.append)
+
+        with event_bus.isolated_subscribers():
+            event_bus.publish([_EventA()])
+        self.assertEqual(received, [])
+
+        event = _EventA()
+        event_bus.publish([event])
+        self.assertEqual(received, [event])
+
+    def test_subscriptions_made_inside_are_dropped_on_exit(self) -> None:
+        received: list[DomainEvent] = []
+
+        with event_bus.isolated_subscribers():
+            event_bus.subscribe(_EventA, received.append)
+
+        event_bus.publish([_EventA()])
+        self.assertEqual(received, [])

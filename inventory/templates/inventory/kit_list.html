@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>在庫管理</title>
+</head>
+<body>
+<h1>在庫管理</h1>
+<p><a href="{% url 'home' %}">トップへ</a> / <a href="/admin/inventory/kit/add/">キットを登録する(管理サイト)</a></p>
+
+{% if messages %}
+<ul>
+    {% for message in messages %}
+    <li>{{ message }}</li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+<h2>キット</h2>
+<table border="1" cellpadding="4">
+    <thead>
+    <tr>
+        <th>キット</th>
+        <th>実在庫</th>
+        <th>予約数</th>
+        <th>注文可能数</th>
+        <th>状態</th>
+        <th>入庫</th>
+        <th>出庫</th>
+        <th>予約</th>
+        <th></th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for kit in kits %}
+    <tr>
+        <td>{{ kit.name }}</td>
+        <td>{{ kit.on_hand }}</td>
+        <td>{{ kit.reserved }}</td>
+        <td>{{ kit.available }}{% if kit.is_active and kit.available == 0 %}(在庫切れ){% endif %}</td>
+        <td>{{ kit.get_status_display }}</td>
+        {% if kit.is_active %}
+        <td>
+            <form method="post" action="{% url 'inventory:receive' kit.id %}">
+                {% csrf_token %}
+                <input type="number" name="quantity" min="1" size="4" required>
+                <input type="text" name="memo" placeholder="メモ">
+                <button type="submit">入庫</button>
+            </form>
+        </td>
+        <td>
+            <form method="post" action="{% url 'inventory:issue' kit.id %}">
+                {% csrf_token %}
+                <input type="number" name="quantity" min="1" max="{{ kit.available }}" size="4" required>
+                <input type="text" name="memo" placeholder="理由(廃棄・棚卸差異など)" required>
+                <button type="submit">出庫</button>
+            </form>
+        </td>
+        <td>
+            <form method="post" action="{% url 'inventory:reserve' kit.id %}">
+                {% csrf_token %}
+                <input type="number" name="quantity" min="1" max="{{ kit.available }}" size="4" required>
+                <input type="text" name="memo" placeholder="用途">
+                <button type="submit">確保</button>
+            </form>
+        </td>
+        <td>
+            <form method="post" action="{% url 'inventory:deactivate_kit' kit.id %}">
+                {% csrf_token %}
+                <button type="submit">管理停止</button>
+            </form>
+        </td>
+        {% else %}
+        <td colspan="3">管理停止中(在庫チェックの対象外)</td>
+        <td>
+            <form method="post" action="{% url 'inventory:activate_kit' kit.id %}">
+                {% csrf_token %}
+                <button type="submit">管理再開</button>
+            </form>
+        </td>
+        {% endif %}
+    </tr>
+    {% empty %}
+    <tr><td colspan="9">キットはありません</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<h2>確保中の予約</h2>
+<table border="1" cellpadding="4">
+    <thead>
+    <tr>
+        <th>キット</th>
+        <th>数量</th>
+        <th>用途</th>
+        <th>確保日時</th>
+        <th></th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for reservation in reservations %}
+    <tr>
+        <td>{{ reservation.kit.name }}</td>
+        <td>{{ reservation.quantity }}</td>
+        <td>{{ reservation.memo }}</td>
+        <td>{{ reservation.created_at|date:"Y-m-d H:i" }}</td>
+        <td>
+            <form method="post" action="{% url 'inventory:use_reservation' reservation.id %}" style="display:inline">
+                {% csrf_token %}
+                <button type="submit">使用</button>
+            </form>
+            <form method="post" action="{% url 'inventory:cancel_reservation' reservation.id %}" style="display:inline">
+                {% csrf_token %}
+                <button type="submit">取消</button>
+            </form>
+        </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5">確保中の予約はありません</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<h2>最近の在庫ログ</h2>
+<table border="1" cellpadding="4">
+    <thead>
+    <tr>
+        <th>日時</th>
+        <th>キット</th>
+        <th>種類</th>
+        <th>増減</th>
+        <th>変動後の実在庫</th>
+        <th>メモ</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for movement in movements %}
+    <tr>
+        <td>{{ movement.created_at|date:"Y-m-d H:i" }}</td>
+        <td>{{ movement.kit.name }}</td>
+        <td>{{ movement.get_kind_display }}</td>
+        <td>{{ movement.change|stringformat:"+d" }}</td>
+        <td>{{ movement.on_hand_after }}</td>
+        <td>{{ movement.memo }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6">ログはありません</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</body>
+</html>

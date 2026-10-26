@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>注文一覧</title>
+</head>
+<body>
+<h1>注文一覧</h1>
+<p><a href="{% url 'home' %}">トップへ</a> / <a href="{% url 'kitchen:ticket_list' %}">キッチン画面へ</a></p>
+
+{% if messages %}
+<ul>
+    {% for message in messages %}
+    <li>{{ message }}</li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+<h2>注文する</h2>
+<form method="post" action="{% url 'ordering:place_order' %}">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">注文する</button>
+</form>
+
+<h2>注文一覧</h2>
+<table border="1" cellpadding="4">
+    <thead>
+    <tr>
+        <th>注文ID</th>
+        <th>会員ID</th>
+        <th>明細</th>
+        <th>小計</th>
+        <th>割引</th>
+        <th>合計</th>
+        <th>ステータス</th>
+        <th></th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+    {% with order=row.order %}
+    <tr>
+        <td>{{ order.id }}</td>
+        <td>{{ order.customer_id }}</td>
+        <td>
+            {% for line in order.lines %}
+            {{ line.name }} × {{ line.quantity }}{% if not forloop.last %}<br>{% endif %}
+            {% endfor %}
+        </td>
+        <td>{{ order.subtotal }}円</td>
+        <td>{{ order.discount }}円</td>
+        <td>{{ order.total }}円</td>
+        <td>{{ row.status_label }}</td>
+        <td>
+            {% if order.status == "PLACED" %}
+            <form method="post" action="{% url 'ordering:cancel_order' order.id %}" style="display:inline">
+                {% csrf_token %}
+                <button type="submit">キャンセル</button>
+            </form>
+            {% elif order.status == "READY" %}
+            <form method="post" action="{% url 'ordering:pick_up_order' order.id %}" style="display:inline">
+                {% csrf_token %}
+                <button type="submit">受取</button>
+            </form>
+            {% endif %}
+        </td>
+    </tr>
+    {% endwith %}
+    {% endfor %}
+    </tbody>
+</table>
+</body>
+</html>

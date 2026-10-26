@@ -1,0 +1,17 @@
+[
+  {"model": "menu.category", "pk": "10000000-0000-0000-0000-000000000001", "fields": {"name": "ドリンク", "display_order": 1}},
+  {"model": "menu.category", "pk": "10000000-0000-0000-0000-000000000002", "fields": {"name": "フード", "display_order": 2}},
+  {"model": "menu.menuitem", "pk": "20000000-0000-0000-0000-000000000001", "fields": {"category": "10000000-0000-0000-0000-000000000001", "name": "ドリップコーヒー", "price": 380, "status": "ON_SALE"}},
+  {"model": "menu.menuitem", "pk": "20000000-0000-0000-0000-000000000002", "fields": {"category": "10000000-0000-0000-0000-000000000001", "name": "カフェラテ", "price": 450, "status": "ON_SALE"}},
+  {"model": "menu.menuitem", "pk": "20000000-0000-0000-0000-000000000003", "fields": {"category": "10000000-0000-0000-0000-000000000001", "name": "抹茶ラテ", "price": 520, "status": "SOLD_OUT"}},
+  {"model": "menu.menuitem", "pk": "20000000-0000-0000-0000-000000000004", "fields": {"category": "10000000-0000-0000-0000-000000000002", "name": "スコーン", "price": 300, "status": "ON_SALE"}},
+  {"model": "menu.menuitem", "pk": "20000000-0000-0000-0000-000000000005", "fields": {"category": "10000000-0000-0000-0000-000000000002", "name": "ホットサンド", "price": 650, "status": "ON_SALE"}},
+  {"model": "customers.customer", "pk": "00000000-0000-0000-0000-000000000001", "fields": {"name": "一般 太郎", "email": "regular@example.com", "status": "ACTIVE", "rank": "REGULAR", "points": 0}},
+  {"model": "customers.customer", "pk": "00000000-0000-0000-0000-000000000002", "fields": {"name": "シルバー 花子", "email": "silver@example.com", "status": "ACTIVE", "rank": "SILVER", "points": 0}},
+  {"model": "customers.customer", "pk": "00000000-0000-0000-0000-000000000003", "fields": {"name": "ゴールド 次郎", "email": "gold@example.com", "status": "ACTIVE", "rank": "GOLD", "points": 0}},
+  {"model": "customers.customer", "pk": "00000000-0000-0000-0000-000000000004", "fields": {"name": "停止 三郎", "email": "suspended@example.com", "status": "SUSPENDED", "rank": "REGULAR", "points": 0}},
+  {"model": "inventory.kit", "pk": "30000000-0000-0000-0000-000000000001", "fields": {"menu_item_id": "20000000-0000-0000-0000-000000000004", "name": "スコーンキット", "on_hand": 10, "reserved": 0, "status": "ACTIVE", "created_at": "2026-01-01T09:00:00Z"}},
+  {"model": "inventory.kit", "pk": "30000000-0000-0000-0000-000000000002", "fields": {"menu_item_id": "20000000-0000-0000-0000-000000000005", "name": "ホットサンドキット", "on_hand": 3, "reserved": 0, "status": "ACTIVE", "created_at": "2026-01-01T09:00:00Z"}},
+  {"model": "inventory.stockmovement", "pk": "31000000-0000-0000-0000-000000000001", "fields": {"kit": "30000000-0000-0000-0000-000000000001", "kind": "RECEIPT", "change": 10, "on_hand_after": 10, "memo": "初期在庫", "created_at": "2026-01-01T09:00:00Z"}},
+  {"model": "inventory.stockmovement", "pk": "31000000-0000-0000-0000-000000000002", "fields": {"kit": "30000000-0000-0000-0000-000000000002", "kind": "RECEIPT", "change": 3, "on_hand_after": 3, "memo": "初期在庫", "created_at": "2026-01-01T09:00:00Z"}}
+]

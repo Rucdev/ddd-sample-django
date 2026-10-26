@@ -2,14 +2,15 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>図書館の貸出管理システム</title>
+    <title>カフェのモバイルオーダー</title>
 </head>
 <body>
-<h1>図書館の貸出管理システム</h1>
+<h1>カフェのモバイルオーダー</h1>
 <ul>
-    <li><a href="{% url 'lending:loan_list' %}">貸出一覧</a></li>
-    <li><a href="{% url 'reservation:reservation_list' %}">予約一覧</a></li>
-    <li><a href="/admin/">管理サイト(蔵書・会員マスタなど)</a></li>
+    <li><a href="{% url 'ordering:order_list' %}">注文画面</a>(お客様・レジ側)</li>
+    <li><a href="{% url 'kitchen:ticket_list' %}">キッチン画面</a>(調理担当側)</li>
+    <li><a href="{% url 'inventory:kit_list' %}">在庫管理画面</a>(キットの入出庫・予約)</li>
+    <li><a href="/admin/">管理サイト(メニュー・会員マスタなど)</a></li>
 </ul>
 </body>
 </html>

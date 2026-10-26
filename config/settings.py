@@ -38,10 +38,12 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'lending',
-    'reservation',
-    'catalog',
-    'members',
+    'django_filters',
+    'ordering',
+    'kitchen',
+    'menu',
+    'customers',
+    'inventory',
 ]
 
 REST_FRAMEWORK = {
@@ -124,3 +126,6 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# `manage.py loaddata demo` で読み込むデモデータ(メニュー・会員)の置き場所
+FIXTURE_DIRS = [BASE_DIR / 'fixtures']
