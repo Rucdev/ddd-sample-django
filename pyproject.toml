@@ -4,79 +4,108 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
+# 実行時に必要な依存パッケージ
 dependencies = [
     "django>=6.0.3",
+    "django-filter>=26.2",
     "djangorestframework>=3.17.1",
 ]
 
+# 開発時のみ使う依存パッケージ（`uv sync` で既定でインストールされる）
 [dependency-groups]
 dev = [
+    # Django の型スタブ。ty などの型チェッカーが `Model.objects` 等を解決できるようにする
+    "django-stubs>=6.1.2",
+    # モジュール間の import 依存ルールを検査する（`uv run lint-imports`）
     "import-linter>=2.13",
 ]
 
+# ---------------------------------------------------------------------------
+# import-linter: モジュール境界を import レベルで強制する設定
+# ---------------------------------------------------------------------------
 [tool.importlinter]
+# 検査対象とするトップレベルパッケージ（＝各モジュール）
 root_packages = [
     "shared",
-    "catalog",
-    "members",
-    "lending",
-    "reservation",
+    "menu",
+    "customers",
+    "ordering",
+    "kitchen",
+    "inventory",
 ]
+# django などの外部パッケージも依存グラフに含める（ドメイン層の Django 非依存チェックに必要）
 include_external_packages = true
 
+# menu の内部実装には他モジュールから直接触らせない。公開窓口は menu.public のみ
 [[tool.importlinter.contracts]]
-name = "catalog's internals are only reachable through catalog.public"
+name = "menu's internals are only reachable through menu.public"
 type = "forbidden"
-source_modules = ["lending", "reservation", "members"]
-forbidden_modules = ["catalog"]
+source_modules = ["ordering", "kitchen", "customers", "inventory"]
+forbidden_modules = ["menu"]
+# 例外として許可する import
 ignore_imports = [
-    "lending.** -> catalog.public",
-    "reservation.** -> catalog.public",
-    # Test fixtures are allowed to reach into another module's models directly to set up
-    # cross-module state; only production code must go through the module's public.py.
-    "lending.tests.** -> catalog.**",
-    "reservation.tests.** -> catalog.**",
-    "members.tests -> catalog.**",
+    "ordering.** -> menu.public",
+    "inventory.** -> menu.public",
+    # テストのフィクスチャは、モジュールをまたいだ状態を準備するために他モジュールの
+    # models へ直接触れてよい。public.py 経由を強制するのはプロダクションコードだけ。
+    "ordering.tests.** -> menu.**",
+    "inventory.tests.** -> menu.**",
 ]
 
+# customers の内部実装には他モジュールから直接触らせない。公開窓口は customers.public のみ
 [[tool.importlinter.contracts]]
-name = "members's internals are only reachable through members.public"
+name = "customers's internals are only reachable through customers.public"
 type = "forbidden"
-source_modules = ["lending", "reservation", "catalog"]
-forbidden_modules = ["members"]
+source_modules = ["ordering", "kitchen", "menu", "inventory"]
+forbidden_modules = ["customers"]
 ignore_imports = [
-    "lending.** -> members.public",
-    "reservation.** -> members.public",
-    "lending.tests.** -> members.**",
-    "reservation.tests.** -> members.**",
+    "ordering.** -> customers.public",
+    # テストからの直接参照は許可
+    "ordering.tests.** -> customers.**",
+    "kitchen.tests.** -> customers.**",
+    "inventory.tests.** -> customers.**",
 ]
 
+# ordering の公開窓口は ordering.public と、購読用のドメインイベント ordering.domain.events のみ
 [[tool.importlinter.contracts]]
-name = "lending's internals are only reachable through lending.public or lending.domain.events"
+name = "ordering's internals are only reachable through ordering.public or ordering.domain.events"
 type = "forbidden"
-source_modules = ["reservation", "catalog", "members"]
-forbidden_modules = ["lending"]
+source_modules = ["kitchen", "menu", "customers", "inventory"]
+forbidden_modules = ["ordering"]
+# kitchen が ordering から受け取るのはイベントだけ（ordering.public は使わない）
 ignore_imports = [
-    "reservation.** -> lending.domain.events",
-    "members.** -> lending.public",
-    "members.** -> lending.domain.events",
-    "reservation.tests.** -> lending.**",
-    "members.tests -> lending.**",
+    "kitchen.** -> ordering.domain.events",
+    "customers.** -> ordering.domain.events",
+    "inventory.** -> ordering.domain.events",
+    # テストからの直接参照は許可
+    "kitchen.tests.** -> ordering.**",
+    "inventory.tests.** -> ordering.**",
 ]
 
+# kitchen の公開窓口は kitchen.public と、購読用のドメインイベント kitchen.domain.events のみ
 [[tool.importlinter.contracts]]
-name = "reservation's internals are only reachable through reservation.public"
+name = "kitchen's internals are only reachable through kitchen.public or kitchen.domain.events"
 type = "forbidden"
-source_modules = ["lending", "catalog", "members"]
-forbidden_modules = ["reservation"]
+source_modules = ["ordering", "menu", "customers", "inventory"]
+forbidden_modules = ["kitchen"]
+# ordering は kitchen.public も使わない（照会し合うと双方向の依存になるため。CONTEXT-MAP.md 参照）
 ignore_imports = [
-    "lending.** -> reservation.public",
-    "lending.tests.** -> reservation.**",
+    "ordering.** -> kitchen.domain.events",
 ]
 
+# inventory の内部実装には他モジュールから直接触らせない。公開窓口は inventory.public のみ
+[[tool.importlinter.contracts]]
+name = "inventory's internals are only reachable through inventory.public"
+type = "forbidden"
+source_modules = ["ordering", "kitchen", "menu", "customers"]
+forbidden_modules = ["inventory"]
+ignore_imports = [
+    "ordering.** -> inventory.public",
+]
+
+# ドメイン層は純粋な Python に保ち、Django に依存させない
 [[tool.importlinter.contracts]]
 name = "domain layers stay Django-free"
 type = "forbidden"
-source_modules = ["lending.domain", "reservation.domain", "shared.domain"]
+source_modules = ["ordering.domain", "kitchen.domain", "shared.domain"]
 forbidden_modules = ["django"]
-

@@ -1,5 +1,7 @@
 # API は DRF を採用するが、DDD アプリでは限定利用にとどめる
 
+> 参照系(CQRS の Q)については [ADR-0003](./0003-query-side-uses-drf-generics-and-django-filter.md) で緩和した。この ADR の制約はコマンド側に適用する。
+
 API フレームワークとして DRF を採用する。ただし DDD アプリで使ってよいのは `APIView` と素の `Serializer` までとし、`ModelSerializer` / `ModelViewSet` / ルーターは CRUD アプリ専用とする。ORM モデルと API を直結させる道具はユースケースを迂回してしまうためで、ModelForm を DDD アプリで禁止しているのと同じ理由。
 
 ## Considered Options
