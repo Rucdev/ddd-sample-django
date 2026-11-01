@@ -1,5 +1,7 @@
 import uuid
 
+from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 
@@ -16,6 +18,29 @@ class MenuItemModelTests(TestCase):
 
         with self.assertRaises(IntegrityError), transaction.atomic():
             MenuItem.objects.create(category=self.category, name="カフェラテ", price=500)
+
+    def test_svg_image_upload_is_rejected(self) -> None:
+        # SVG はスクリプトを埋め込めるので、管理サイトからのアップロードは受け付けない(保存型 XSS 対策)
+        item = MenuItem(
+            category=self.category,
+            name="カフェラテ",
+            price=450,
+            image=SimpleUploadedFile("evil.svg", b"<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>"),
+        )
+
+        with self.assertRaises(ValidationError) as ctx:
+            item.full_clean()
+        self.assertIn("image", ctx.exception.message_dict)
+
+    def test_raster_image_upload_is_accepted(self) -> None:
+        item = MenuItem(
+            category=self.category,
+            name="カフェラテ",
+            price=450,
+            image=SimpleUploadedFile("latte.webp", b"RIFF....WEBP"),
+        )
+
+        item.full_clean()  # should not raise
 
     def test_default_status_is_on_sale(self) -> None:
         item = MenuItem.objects.create(category=self.category, name="カフェラテ", price=450)

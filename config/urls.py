@@ -19,7 +19,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from config.views import home_view
+from config.views import home_view, serve_media
 
 urlpatterns = [
     path('', home_view, name='home'),
@@ -30,4 +30,5 @@ urlpatterns = [
 ]
 
 # 開発サーバでアップロード画像(MEDIA)を配信する。DEBUG=False では何も足さない。
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# スクリプト入りのファイルを直接開かれても動かないよう、ヘッダを付ける serve_media を使う。
+urlpatterns += static(settings.MEDIA_URL, view=serve_media, document_root=settings.MEDIA_ROOT)
