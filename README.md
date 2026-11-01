@@ -17,10 +17,10 @@ Django でモジュラモノリスを構成し、**DDD ベースのモジュー�
 | モジュール | 種類 | 役割 |
 | --- | --- | --- |
 | [ordering](ordering/CONTEXT.md) | DDD | 注文の受付・キャンセル・受取、金額計算(会員ランク割引) |
-| [kitchen](kitchen/CONTEXT.md) | DDD | 調理チケットの進行(調理待ち → 調理中 → 調理済) |
+| [kitchen](kitchen/CONTEXT.md) | DDD | 注文明細ごとの調理チケットの進行(調理待ち → 調理中 → 調理済) |
 | [menu](menu/CONTEXT.md) | CRUD | カテゴリ・商品のマスタ管理 |
 | [customers](customers/CONTEXT.md) | CRUD | 会員のマスタ管理、会員ランク・ポイント |
-| [inventory](inventory/CONTEXT.md) | CRUD | 商品を作るキットの入出庫・予約・在庫ログ。在庫が足りない商品は注文できない |
+| [seating](seating/CONTEXT.md) | DDD | 座席構成ファイル(YAML)から席を作り、空き・予約中・使用中を管理する |
 
 `shared/` は全モジュールが利用できる共有カーネル(Entity / ValueObject / DomainEvent の基底クラスと、モジュール間イベントバス)。
 
@@ -29,7 +29,8 @@ Django でモジュラモノリスを構成し、**DDD ベースのモジュー�
 ```bash
 uv sync
 uv run python manage.py migrate
-uv run python manage.py loaddata demo   # デモ用のメニュー・会員・キットを投入
+uv run python manage.py loaddata demo   # デモ用のメニュー・会員を投入
+uv run python manage.py apply_seat_layout   # 座席構成ファイル(seating/seat_layout.yaml)を DB に反映
 uv run python manage.py createsuperuser
 uv run python manage.py runserver
 ```
@@ -49,16 +50,17 @@ uv run python manage.py runserver
 | `00000000-0000-0000-0000-000000000003` | ゴールド 次郎 | ゴールド(10%) |
 | `00000000-0000-0000-0000-000000000004` | 停止 三郎 | 利用停止(注文できない) |
 
-1. **注文画面**(`/orders/`)で会員 ID と数量を入れて注文する → ステータスは「受付済」
-2. **キッチン画面**(`/kitchen/`)にチケットが出る。「調理開始」→ 注文画面のステータスが「調理中」になる(この時点でキャンセルはできない)
-3. キッチン画面で「調理完了」→ 注文が「受取可」になる
+1. **注文画面**(`/orders/`)で会員 ID と数量を入れて注文する(ドリンクとフードなど複数の商品を頼むと分かりやすい)→ ステータスは「受付済」
+2. **キッチン画面**(`/kitchen/`)に商品ごとのチケットが出る(「1/2」は 2 品中 1 品目)。どれか 1 枚を「調理開始」→ 注文画面のステータスが「調理中」になる(この時点でキャンセルはできない)
+3. チケットは商品ごとにばらばらに進めてよい。注文画面には「1/2 品できあがり」のように出て、全部「調理完了」すると注文が「受取可」になる
 4. 注文画面で「受取」→ 「受取済」。管理サイトで会員のポイントが増えている(100 円につき 1 ポイント)
-5. **在庫管理画面**(`/inventory/`)で、スコーン(10 個)・ホットサンド(3 個)のキットが減っているのを確認する。ホットサンドを 4 個注文しようとすると在庫不足で断られ、残りを全部予約で確保すると注文画面から消える(在庫切れ)。予約を取り消すと注文画面に戻る
+5. **座席画面**(`/seating/`)で、空き席を「予約」→「着席」、または予約なしで「案内」すると使用中になり、上の集計と使用率が変わる。「退席」で空きに戻る
+6. `seating/seat_layout.yaml` の席を足したり定員を変えたりして `apply_seat_layout` を流し直すと、使用中の席はそのままで構成だけが変わる。使用中の席をファイルから消すと反映ごと断られる
 
 ## テスト
 
 ```bash
-uv run python manage.py test shared ordering kitchen menu customers inventory config
+uv run python manage.py test shared ordering kitchen menu customers seating config
 ```
 
 ドメイン層のテスト(`*/tests/test_domain/`)は DB を使わない素の `unittest.TestCase`。ルールは時刻に依存しないので、日付の差し替えは要らない。

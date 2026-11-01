@@ -1,0 +1,27 @@
+import uuid
+
+from django.db import transaction
+
+from ordering.domain.exceptions import OrderNotFound
+from ordering.domain.repositories import OrderRepository
+from shared.infrastructure.event_bus import publish
+
+
+class StartLineCookingUseCase:
+    """明細 1 行の調理開始を注文に記録する(最初の 1 行で注文は「調理中」になる)。
+    画面・API からは呼ばれず、kitchen の `CookingStarted` イベント
+    (`ordering/infrastructure/event_handlers.py`)から呼ばれる。
+    """
+
+    def __init__(self, order_repository: OrderRepository) -> None:
+        self._order_repository = order_repository
+
+    def execute(self, order_id: uuid.UUID, line_no: int) -> None:
+        with transaction.atomic():
+            order = self._order_repository.find_by_id(order_id, for_update=True)
+            if order is None:
+                raise OrderNotFound(order_id)
+
+            order.start_cooking_line(line_no)
+            self._order_repository.save(order)
+            publish(order.collect_events())

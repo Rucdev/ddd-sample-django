@@ -20,7 +20,7 @@ class TicketStatus(StrEnum):
 
 @dataclass(frozen=True)
 class TicketItem(ValueObject):
-    """チケットに載る「何を何個作るか」。値オブジェクト。
+    """チケットに載る「何を何個作るか」。値オブジェクト。チケット 1 枚に 1 つ。
 
     キッチンは価格に関心がないので、商品名と数量だけを持つ(同じ「商品」でも
     ordering の OrderLine とはコンテキストごとに別のモデルになる)。

@@ -14,7 +14,7 @@ class CompleteCookingUseCase:
 
     def execute(self, data: CompleteCookingInput) -> TicketDTO:
         with transaction.atomic():
-            ticket = self._repository.find_by_id(data.ticket_id)
+            ticket = self._repository.find_by_id(data.ticket_id, for_update=True)
             if ticket is None:
                 raise TicketNotFound(data.ticket_id)
 

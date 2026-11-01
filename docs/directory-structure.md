@@ -30,10 +30,10 @@ ddd-sample-django/
 │   └── infrastructure/
 │       └── event_bus.py        # モジュール間のイベント伝搬(同期ディスパッチで開始)
 ├── ordering/                   # DDD: 注文コンテキスト(注文・キャンセル・受取・金額計算)
-├── kitchen/                    # DDD: キッチンコンテキスト(調理チケットの進行)
+├── kitchen/                    # DDD: キッチンコンテキスト(注文明細ごとの調理チケットの進行)
 ├── menu/                       # CRUD: メニューマスタ(カテゴリ・商品)
 ├── customers/                  # CRUD: 会員マスタ(ランク・ポイント)
-└── inventory/                  # CRUD: キットの在庫(入出庫・予約・在庫ログ)
+└── seating/                    # DDD: 座席(座席構成ファイルの反映と、空き・予約中・使用中の管理)
 ```
 
 ## DDD ベースのアプリの構成
@@ -67,9 +67,14 @@ ordering/
 │   └── event_handlers.py       # 他モジュールのドメインイベントのハンドラ
 ├── presentation/               # プレゼンテーション層
 │   ├── __init__.py
-│   ├── views.py                # 画面 View。ユースケースを呼ぶだけの薄い層
+│   ├── commands/               # コマンド側(C)の View。ユースケースを呼ぶだけの薄い層
+│   │   ├── views.py            # 画面 View(POST → ユースケース → 一覧へリダイレクト)
+│   │   └── api.py              # API View(APIView のみ。ViewSet は使わない)
+│   ├── queries/                # 参照側(Q)の View。queries.py を呼んで表示するだけ
+│   │   ├── views.py            # 画面 View
+│   │   └── api.py              # API View(ListAPIView も可)
+│   ├── routing.py              # 同じ URL を GET/POST で C/Q の View に振り分けるヘルパー
 │   ├── forms.py                # 画面入力の形式バリデーション(Django Form)
-│   ├── api.py                  # API View(コマンドは APIView、参照は ListAPIView も可。ViewSet は使わない)
 │   ├── filters.py              # 参照 API の絞り込み条件(django-filter の FilterSet)
 │   ├── serializers.py          # API 入出力の形式バリデーション(素の Serializer)
 │   └── urls.py                 # このモジュールの URL 定義(画面 + API)
@@ -129,7 +134,7 @@ DDD アプリも API を公開する。API は画面と並ぶ presentation 層�
 - ドメイン例外 → HTTP ステータスの変換は DRF の **custom exception handler** に一元化する(例: `TooManyInProgressOrders` → 409)。画面系の messages 変換と役割は同じで、ビジネスルール違反を 500 にしない。
 
 ```python
-# presentation/api.py
+# presentation/commands/api.py
 class CancelOrderAPIView(APIView):
     def post(self, request, order_id):
         use_case = CancelOrderUseCase(order_repository=DjangoOrderRepository())
@@ -149,6 +154,9 @@ class CancelOrderAPIView(APIView):
 #### URL ルーティング
 
 - 各モジュールの `presentation/urls.py`(CRUD アプリは `urls.py`)に `app_name` を付けて名前空間化し、`config/urls.py` が `include()` で束ねる。
+- **View は C/Q で分けるが、URL はそれに合わせない**(ordering)。URL はクライアントとの約束でリソースの名前を表し、View の分け方は内部の整理方法なので変わる理由が違う。C/Q の区別は HTTP メソッドとドメインの動詞(`/cancel/`・`/pick-up/`)で URL に現れている。`/commands/` のような区切りは URL に入れない。
+- Django の URL 解決はメソッドを見ないため、`GET /api/orders/`(一覧)と `POST /api/orders/`(注文)のように C/Q が同じ URL に重なる箇所だけ `presentation/routing.py` の `by_method()` で振り分ける。
+- 「参照側の View はユースケースを呼ばない」「コマンド側の View は `queries.py` を使わない」は import-linter の contract で強制する。
 
 ```python
 # config/urls.py
@@ -173,7 +181,7 @@ urlpatterns = [
 - ユースケースはコンストラクタでリポジトリ抽象を受け取る。組み立て(具象の注入)は presentation 層の担当とし、DI コンテナは使わず**ビュー(またはモジュールごとのファクトリ関数)で手で組む**。サンプルとしては仕掛けが見えるほうがよい。
 
 ```python
-# presentation/views.py
+# presentation/commands/views.py
 def place_order_view(request):
     use_case = PlaceOrderUseCase(order_repository=DjangoOrderRepository())
     ...
@@ -210,7 +218,7 @@ menu/
 └── tests.py
 ```
 
-CRUD アプリでも、守るべきルールを持つ更新操作がある場合は `services.py` にまとめ、画面・API・`public.py`・イベントハンドラはそれを呼ぶだけにする(例: inventory。在庫数の条件付き UPDATE・在庫ログ・在庫切れの反映を 1 トランザクションで行う)。その場合、admin や `ModelSerializer` では該当フィールドを読み取り専用にし、`create` / `update` を services に向ける。
+CRUD アプリでも、守るべきルールを持つ更新操作がある場合は `services.py` にまとめ、画面・API・`public.py`・イベントハンドラはそれを呼ぶだけにする。その場合、admin や `ModelSerializer` では該当フィールドを読み取り専用にし、`create` / `update` を services に向ける。
 
 ## モジュール間のルール
 
@@ -222,7 +230,7 @@ CRUD アプリでも、守るべきルールを持つ更新操作がある場合
 2. **`public.py` がモジュールの唯一の公開面**。関数と DTO(dataclass)だけを公開し、ORM モデルやエンティティをそのまま返さない。
 3. **DB レベルの結合を避ける**: モジュールをまたぐ ForeignKey は張らず、ID(値)のみ保持する。
 4. **結果整合でよい連携はドメインイベント経由**にする(`shared/infrastructure/event_bus.py`)。まずは同期ディスパッチで実装し、必要になったら非同期(Celery 等)に差し替える。
-5. **依存ルールは import-linter で機械的に強制する**(`pyproject.toml` の `[tool.importlinter]`)。各モジュールを `forbidden` contract で「他モジュールからは `public.py`(と、イベントを購読する側からの `domain.events`)以外 import 禁止」とし、`ordering.domain` / `kitchen.domain` / `shared.domain` が Django を import しない contract も追加している。フラット配置のため共通プレフィックスはないが、モジュール名を列挙した contract で同等のチェックができる。テストのフィクスチャ(他モジュールの `models` を直接使って前提データを作る)は `ignore_imports` で明示的に許容し、本番コードのみを対象にする。`uv run lint-imports` で実行できる。
+5. **依存ルールは import-linter で機械的に強制する**(`pyproject.toml` の `[tool.importlinter]`)。各モジュールを `forbidden` contract で「他モジュールからは `public.py`(と、イベントを購読する側からの `domain.events`)以外 import 禁止」とし、`ordering.domain` / `kitchen.domain` / `seating.domain` / `shared.domain` が Django を import しない contract も追加している。フラット配置のため共通プレフィックスはないが、モジュール名を列挙した contract で同等のチェックができる。テストのフィクスチャ(他モジュールの `models` を直接使って前提データを作る)は `ignore_imports` で明示的に許容し、本番コードのみを対象にする。`uv run lint-imports` で実行できる。
 
 ## settings.py での登録
 
@@ -234,7 +242,7 @@ INSTALLED_APPS = [
     "kitchen",
     "menu",
     "customers",
-    "inventory",
+    "seating",
 ]
 ```
 

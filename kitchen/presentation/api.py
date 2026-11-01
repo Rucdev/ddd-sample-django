@@ -13,7 +13,7 @@ from kitchen.presentation.filters import TicketFilter
 from kitchen.presentation.serializers import TicketSerializer
 
 
-# コマンド側は ordering/presentation/api.py と同じく DRF を限定利用する(ADR-0001):
+# コマンド側は ordering/presentation/commands/api.py と同じく DRF を限定利用する(ADR-0001):
 # APIView + 素の Serializer でユースケースを呼ぶだけ。
 # 参照側はユースケースを通らないので、ListAPIView と django-filter を素直に使う(ADR-0003)。
 

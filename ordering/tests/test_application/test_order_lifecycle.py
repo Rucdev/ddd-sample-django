@@ -4,9 +4,9 @@ from django.test import TestCase
 
 from ordering.application.dto import CancelOrderInput, PickUpOrderInput
 from ordering.application.use_cases.cancel_order import CancelOrderUseCase
-from ordering.application.use_cases.mark_ready import MarkReadyUseCase
+from ordering.application.use_cases.complete_line_cooking import CompleteLineCookingUseCase
 from ordering.application.use_cases.pick_up_order import PickUpOrderUseCase
-from ordering.application.use_cases.start_preparing import StartPreparingUseCase
+from ordering.application.use_cases.start_line_cooking import StartLineCookingUseCase
 from ordering.domain.events import OrderCancelled, OrderPickedUp
 from ordering.domain.exceptions import InvalidOrderTransition, OrderNotFound
 from ordering.domain.value_objects import OrderStatus
@@ -31,16 +31,16 @@ class OrderLifecycleUseCaseTests(TestCase):
         assert order is not None
         return order.status
 
-    def test_start_preparing_then_mark_ready(self) -> None:
-        StartPreparingUseCase(self.repository).execute(self.order.id)
+    def test_line_cooking_moves_order_to_preparing_then_ready(self) -> None:
+        StartLineCookingUseCase(self.repository).execute(self.order.id, 1)
         self.assertEqual(self._status(), OrderStatus.PREPARING)
 
-        MarkReadyUseCase(self.repository).execute(self.order.id)
+        CompleteLineCookingUseCase(self.repository).execute(self.order.id, 1)
         self.assertEqual(self._status(), OrderStatus.READY)
 
     def test_pick_up_publishes_event(self) -> None:
-        StartPreparingUseCase(self.repository).execute(self.order.id)
-        MarkReadyUseCase(self.repository).execute(self.order.id)
+        StartLineCookingUseCase(self.repository).execute(self.order.id, 1)
+        CompleteLineCookingUseCase(self.repository).execute(self.order.id, 1)
         received = []
         event_bus.subscribe(OrderPickedUp, received.append)
         self.addCleanup(event_bus.unsubscribe, OrderPickedUp, received.append)
@@ -65,11 +65,20 @@ class OrderLifecycleUseCaseTests(TestCase):
         self.assertEqual(len(received), 1)
 
     def test_cancel_after_preparing_started_raises(self) -> None:
-        StartPreparingUseCase(self.repository).execute(self.order.id)
+        StartLineCookingUseCase(self.repository).execute(self.order.id, 1)
 
         with self.assertRaises(InvalidOrderTransition):
             CancelOrderUseCase(self.repository).execute(CancelOrderInput(self.order.id))
         self.assertEqual(self._status(), OrderStatus.PREPARING)
+
+    def test_every_state_change_reads_the_order_with_a_lock(self) -> None:
+        # キッチンの明細ごとのイベントが同じ注文に同時に届いても上書きし合わないよう、
+        # 状態を変えるユースケースは必ず行ロックを取って読む。
+        StartLineCookingUseCase(self.repository).execute(self.order.id, 1)
+        CompleteLineCookingUseCase(self.repository).execute(self.order.id, 1)
+        PickUpOrderUseCase(self.repository).execute(PickUpOrderInput(self.order.id))
+
+        self.assertEqual(self.repository.locked, [self.order.id] * 3)
 
     def test_unknown_order_raises_not_found(self) -> None:
         with self.assertRaises(OrderNotFound):
@@ -77,4 +86,4 @@ class OrderLifecycleUseCaseTests(TestCase):
         with self.assertRaises(OrderNotFound):
             PickUpOrderUseCase(self.repository).execute(PickUpOrderInput(uuid.uuid4()))
         with self.assertRaises(OrderNotFound):
-            StartPreparingUseCase(self.repository).execute(uuid.uuid4())
+            StartLineCookingUseCase(self.repository).execute(uuid.uuid4(), 1)

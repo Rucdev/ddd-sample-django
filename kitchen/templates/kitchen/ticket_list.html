@@ -1,59 +1,162 @@
-<!DOCTYPE html>
+{% load static %}<!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>キッチン</title>
+    <link rel="stylesheet" href="{% static 'kitchen/kitchen.css' %}">
 </head>
 <body>
-<h1>キッチン</h1>
-<p><a href="{% url 'home' %}">トップへ</a> / <a href="{% url 'ordering:order_list' %}">注文画面へ</a></p>
+{# チケットをカンバンボードで扱う。列はチケットの状態遷移(調理待ち → 調理中 → 調理済)そのもの。 #}
+{# カードを次の列へドラッグするか、カードのボタンを押すと、その遷移のコマンドを POST する。 #}
+<header class="board-bar">
+    <div class="board-bar__title">
+        <h1>キッチンボード</h1>
+        <span class="board-bar__hint">カードを右の列へドラッグして進めます</span>
+    </div>
+    <nav class="board-bar__nav">
+        <span class="board-bar__refresh">15秒ごとに自動更新</span>
+        <a href="{% url 'ordering:order_list' %}">注文画面</a>
+        <a href="{% url 'home' %}">トップ</a>
+    </nav>
+</header>
+
+{% if item_totals %}
+<section class="summary" aria-label="作る数まとめ">
+    <span class="summary__label">作る数</span>
+    {% for name, quantity in item_totals %}
+    <span class="summary__chip"><strong>{{ quantity }}</strong>{{ name }}</span>
+    {% endfor %}
+</section>
+{% endif %}
 
 {% if messages %}
-<ul>
+<ul class="toasts">
     {% for message in messages %}
-    <li>{{ message }}</li>
+    <li class="toast toast--{{ message.tags|default:'info' }}">{{ message }}</li>
     {% endfor %}
 </ul>
 {% endif %}
 
-<h2>調理待ち・調理中のチケット</h2>
-<table border="1" cellpadding="4">
-    <thead>
-    <tr>
-        <th>注文ID</th>
-        <th>作るもの</th>
-        <th>状態</th>
-        <th></th>
-    </tr>
-    </thead>
-    <tbody>
-    {% for ticket in tickets %}
-    <tr>
-        <td>{{ ticket.order_id }}</td>
-        <td>
-            {% for item in ticket.items %}
-            {{ item.name }} × {{ item.quantity }}{% if not forloop.last %}<br>{% endif %}
+<main class="board">
+    <section class="column column--queued" data-status="QUEUED">
+        <header class="column__head">
+            <span class="column__dot"></span>調理待ち<span class="column__count">{{ queued|length }}</span>
+        </header>
+        <div class="column__cards">
+            {% for ticket in queued %}
+            {% include "kitchen/_ticket.html" with action="start" next_status="COOKING" %}
+            {% empty %}
+            <p class="column__empty">新しいチケットはありません</p>
             {% endfor %}
-        </td>
-        <td>{% if ticket.status == "QUEUED" %}調理待ち{% else %}調理中{% endif %}</td>
-        <td>
-            {% if ticket.status == "QUEUED" %}
-            <form method="post" action="{% url 'kitchen:start_cooking' ticket.id %}" style="display:inline">
-                {% csrf_token %}
-                <button type="submit">調理開始</button>
-            </form>
-            {% else %}
-            <form method="post" action="{% url 'kitchen:complete_cooking' ticket.id %}" style="display:inline">
-                {% csrf_token %}
-                <button type="submit">調理完了</button>
-            </form>
-            {% endif %}
-        </td>
-    </tr>
-    {% empty %}
-    <tr><td colspan="4">チケットはありません</td></tr>
-    {% endfor %}
-    </tbody>
-</table>
+        </div>
+    </section>
+
+    <section class="column column--cooking" data-status="COOKING">
+        <header class="column__head">
+            <span class="column__dot"></span>調理中<span class="column__count">{{ cooking|length }}</span>
+        </header>
+        <div class="column__cards">
+            {% for ticket in cooking %}
+            {% include "kitchen/_ticket.html" with action="complete" next_status="DONE" %}
+            {% empty %}
+            <p class="column__empty">ここへドラッグして調理開始</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="column column--done" data-status="DONE">
+        <header class="column__head">
+            <span class="column__dot"></span>調理済<span class="column__sub">直近 {{ done|length }} 件</span>
+        </header>
+        <div class="column__cards">
+            {% for ticket in done %}
+            {% include "kitchen/_ticket.html" %}
+            {% empty %}
+            <p class="column__empty">ここへドラッグして調理完了</p>
+            {% endfor %}
+        </div>
+    </section>
+</main>
+
+<script>
+// ボードの振る舞い。状態はサーバ側が持ち、ここでは表示とコマンドの送信だけを行う。
+// - カードのドラッグ: 次の状態の列にだけ落とせる(ドメインの状態遷移と同じ一方向)
+// - 経過時間の表示と、15 秒ごとの自動再読み込み
+(function () {
+    const pad = function (n) { return String(n).padStart(2, "0"); };
+    let busy = false;  // 送信中・ドラッグ中は自動更新しない
+    let dragging = null;
+
+    function tick() {
+        const now = new Date();
+        document.querySelectorAll(".card[data-created][data-next]").forEach(function (card) {
+            const seconds = Math.max(0, Math.floor((now - new Date(card.dataset.created)) / 1000));
+            card.querySelector(".card__timer").textContent = Math.floor(seconds / 60) + ":" + pad(seconds % 60);
+            // 経過時間で色を変える: 5 分で注意、10 分で遅延
+            card.classList.toggle("is-warn", seconds >= 300 && seconds < 600);
+            card.classList.toggle("is-late", seconds >= 600);
+        });
+    }
+    tick();
+    setInterval(tick, 1000);
+
+    // 調理済カードの注文時刻。サーバの TIME_ZONE(UTC)ではなく、見ている端末の時刻で出す。
+    document.querySelectorAll(".card__time").forEach(function (time) {
+        const created = new Date(time.closest(".card").dataset.created);
+        time.textContent = pad(created.getHours()) + ":" + pad(created.getMinutes()) + " 注文";
+    });
+
+    document.querySelectorAll(".card[data-next]").forEach(function (card) {
+        card.draggable = true;
+        card.addEventListener("dragstart", function (event) {
+            dragging = card;
+            busy = true;
+            event.dataTransfer.effectAllowed = "move";
+            card.classList.add("is-dragging");
+            const target = document.querySelector('.column[data-status="' + card.dataset.next + '"]');
+            if (target) target.classList.add("is-droppable");
+        });
+        card.addEventListener("dragend", function () {
+            card.classList.remove("is-dragging");
+            document.querySelectorAll(".column").forEach(function (column) {
+                column.classList.remove("is-droppable", "is-over");
+            });
+            if (!card.dataset.submitted) busy = false;
+            dragging = null;
+        });
+    });
+
+    document.querySelectorAll(".column").forEach(function (column) {
+        const accepts = function () { return dragging && dragging.dataset.next === column.dataset.status; };
+        column.addEventListener("dragover", function (event) {
+            if (!accepts()) return;
+            event.preventDefault();
+            column.classList.add("is-over");
+        });
+        column.addEventListener("dragleave", function (event) {
+            if (!column.contains(event.relatedTarget)) column.classList.remove("is-over");
+        });
+        column.addEventListener("drop", function (event) {
+            if (!accepts()) return;
+            event.preventDefault();
+            const card = dragging;
+            card.dataset.submitted = "1";
+            // 見た目を先に動かしてから、カードが持っているフォーム(遷移のコマンド)を送る
+            column.querySelector(".column__empty")?.remove();
+            column.querySelector(".column__cards").prepend(card);
+            card.classList.add("is-moving");
+            card.querySelector("form").requestSubmit();
+        });
+    });
+
+    document.addEventListener("submit", function () { busy = true; });
+    setInterval(function () { if (!busy) location.reload(); }, 15000);
+
+    setTimeout(function () {
+        document.querySelectorAll(".toast").forEach(function (toast) { toast.classList.add("is-gone"); });
+    }, 3000);
+})();
+</script>
 </body>
 </html>

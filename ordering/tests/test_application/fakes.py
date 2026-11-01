@@ -14,11 +14,14 @@ class FakeOrderRepository:
 
     def __init__(self) -> None:
         self._orders: dict[uuid.UUID, Order] = {}
+        self.locked: list[uuid.UUID] = []  # for_update=True で読まれた注文(ロックを取ったかの確認用)
 
     def save(self, order: Order) -> None:
         self._orders[order.id] = copy.deepcopy(order)
 
-    def find_by_id(self, order_id: uuid.UUID) -> Order | None:
+    def find_by_id(self, order_id: uuid.UUID, *, for_update: bool = False) -> Order | None:
+        if for_update:
+            self.locked.append(order_id)
         order = self._orders.get(order_id)
         return copy.deepcopy(order) if order else None
 

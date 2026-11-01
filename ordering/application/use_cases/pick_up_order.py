@@ -16,7 +16,7 @@ class PickUpOrderUseCase:
 
     def execute(self, data: PickUpOrderInput) -> OrderDTO:
         with transaction.atomic():
-            order = self._order_repository.find_by_id(data.order_id)
+            order = self._order_repository.find_by_id(data.order_id, for_update=True)
             if order is None:
                 raise OrderNotFound(data.order_id)
 

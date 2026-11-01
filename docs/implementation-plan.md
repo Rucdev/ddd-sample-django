@@ -62,13 +62,24 @@
 4. **import-linter**: 各モジュールは他モジュールの `public`(とイベントを購読する側からの `domain.events`)以外を import 禁止。ordering ↔ kitchen はイベントのみ。ドメイン層の Django 非依存
 5. **最終確認**: 全テスト + `lint-imports` + README の「画面で一通り動かす」の手順
 
-## Phase 5: inventory(CRUD + services)
+## Phase 5: seating(DDD)
 
-1. **menu の在庫切れフラグ**: `MenuItem.out_of_stock`(inventory だけが書く。admin では読み取り専用)。注文できる = 販売中 かつ 在庫切れでない。`menu.public.set_out_of_stock` を追加
-2. **モデル**: `Kit`(`menu_item_id` 一意、実在庫・予約数・管理中/管理停止、DB 制約で 実在庫 ≥ 予約数)、`Reservation`(確保中 → 使用済 / 取消)、`StockMovement`(在庫ログ)
-3. **services.py**: 入庫・出庫・予約の確保/使用/取消・管理停止/再開・注文での消費/戻し。条件付き UPDATE で売り越しを防ぎ、在庫ログと在庫切れフラグを同じトランザクションで更新する
-4. **ordering との連携**: `PlaceOrderUseCase` が `inventory.public.allocate_for_order` を呼び、`InsufficientStock` を `OutOfStock`(409)に詰め替える。`OrderCancelled` を inventory が購読して戻す
-5. **画面・API**: キットの登録・名前の編集と閲覧は admin、在庫数を動かす操作は専用画面(`/inventory/`)と API(`/inventory/api/`。ViewSet + `@action`、削除なし)
+キットの在庫管理(旧 Phase 5: inventory)は運用を取りやめ、モジュールごと削除した(menu の在庫切れフラグ、ordering の在庫連携も含む)。代わりに座席管理を足す。
+
+1. **座席構成ファイル**: `seating/seat_layout.yaml`(エリアと席の一覧。席コード・定員・見取り図上の行/列)。読み込みは `infrastructure/layout_file.py` に閉じ込め、ドメインは `SeatLayout`(値オブジェクト。コード重複・位置の重なりを検査)だけを知る
+2. **domain**: `Seat` 集約(空き → 予約中 → 使用中 → 空き の遷移)、`plan_layout_changes`(席コードで突き合わせて追加・変更・撤去を出すドメインサービス。予約中・使用中の席は撤去させない)
+3. **反映**: `manage.py apply_seat_layout` → `ApplySeatLayoutUseCase`。冪等で、ステータスは保ったまま構成だけを書き換える
+4. **画面・API**: 座席画面(`/seating/`。エリアごとの見取り図、ステータス別の席数・人数と使用率)と API(`/seating/api/seats/` の一覧 + 予約・予約取消・着席・退席)
+5. **独立性**: 他のコンテキストとはつながない(`public.py` は空)。import-linter で seating の内部を他モジュールから触らせない
+
+## Phase 6: 調理を注文明細ごとに進める
+
+キッチンは商品ごと(持ち場ごと)に作るので、「注文 1 件 = チケット 1 枚」で全商品の足並みをそろえる作りをやめた(Phase 3 のチケットの持ち方を置き換え)。
+
+1. **kitchen**: チケットを注文明細 1 行につき 1 枚にする(`TicketModel` は JSONField の明細をやめて `line_no` / `name` / `quantity` を持つ。(order_id, line_no) で一意)。`CookingStarted` / `CookingCompleted` に `line_no` を載せる。キャンセルはその注文のチケットをまとめて取り消す
+2. **ordering**: `OrderedItem` に `line_no` を載せる。`OrderLine` に明細の調理状況(`LineCookingStatus`)を持たせ、`Order.start_cooking_line()` / `complete_cooking_line()` で進める。最初の 1 品で「調理中」、全品そろって「受取可」。注文単位にまとめるのは注文の持ち主である ordering の責務
+3. **既存データの移行**: kitchen はチケットを明細ごとに分割、ordering は注文ステータスから明細の調理状況を補完するデータマイグレーション
+4. **画面**: キッチンのカードに「2/3」(注文の何品目か)、注文画面に「1/2 品できあがり」と明細ごとの状態
 
 ---
 

@@ -1,5 +1,5 @@
-from kitchen.application.use_cases.cancel_ticket import CancelTicketUseCase
-from kitchen.application.use_cases.open_ticket import OpenTicketUseCase
+from kitchen.application.use_cases.cancel_tickets import CancelTicketsUseCase
+from kitchen.application.use_cases.open_tickets import OpenTicketsUseCase
 from kitchen.domain.value_objects import TicketItem
 from kitchen.infrastructure.repositories import DjangoTicketRepository
 from ordering.domain.events import OrderCancelled, OrderPlaced
@@ -11,11 +11,14 @@ from ordering.domain.events import OrderCancelled, OrderPlaced
 
 
 def handle_order_placed(event: OrderPlaced) -> None:
-    OpenTicketUseCase(repository=DjangoTicketRepository()).execute(
+    OpenTicketsUseCase(repository=DjangoTicketRepository()).execute(
         order_id=event.order_id,
-        items=[TicketItem(name=item.name, quantity=item.quantity) for item in event.items],
+        items=[
+            (item.line_no, TicketItem(name=item.name, quantity=item.quantity))
+            for item in event.items
+        ],
     )
 
 
 def handle_order_cancelled(event: OrderCancelled) -> None:
-    CancelTicketUseCase(repository=DjangoTicketRepository()).execute(order_id=event.order_id)
+    CancelTicketsUseCase(repository=DjangoTicketRepository()).execute(order_id=event.order_id)

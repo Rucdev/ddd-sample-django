@@ -1,0 +1,339 @@
+/* 注文画面のスタイル。カフェらしい暖色系でまとめ、スマホ幅でも 1 列で崩れないようにする。 */
+
+:root {
+    --bg: #faf6f0;
+    --surface: #ffffff;
+    --ink: #2f241d;
+    --muted: #8a7a6d;
+    --line: #eadfd2;
+    --accent: #8b5a36;
+    --accent-ink: #ffffff;
+    --accent-soft: #f3e6d6;
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(60, 40, 20, .06), 0 6px 18px rgba(60, 40, 20, .06);
+}
+
+* { box-sizing: border-box; }
+
+/* JS が hidden 属性で出し分ける要素は、各クラスの display 指定より優先して隠す */
+[hidden] { display: none !important; }
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+    line-height: 1.6;
+}
+
+a { color: inherit; }
+
+.topbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 24px;
+    background: rgba(250, 246, 240, .92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+}
+.brand { font-weight: 700; text-decoration: none; white-space: nowrap; }
+.topbar nav { display: flex; align-items: center; gap: 16px; font-size: 14px; }
+.topbar nav a { color: var(--muted); text-decoration: none; }
+.topbar nav a:hover { color: var(--accent); }
+
+.container { max-width: 1120px; margin: 0 auto; padding: 24px 16px 64px; }
+
+.section-title { font-size: 22px; margin: 8px 0 16px; }
+.category-title {
+    font-size: 14px;
+    letter-spacing: .08em;
+    color: var(--muted);
+    margin: 24px 0 12px;
+}
+
+.messages { list-style: none; padding: 0; margin: 0 0 16px; display: grid; gap: 8px; }
+.message { padding: 10px 14px; border-radius: 10px; background: var(--accent-soft); }
+.message--success { background: #e5f2e3; color: #2e5b28; }
+.message--error { background: #fbe4e2; color: #8a2a22; }
+
+/* ---- 注文フォーム: メニュー + 会計 ---- */
+
+.order-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 32px;
+    align-items: start;
+    margin-bottom: 48px;
+}
+
+.menu-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+}
+
+.menu-card {
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    outline: 2px solid transparent;
+    transition: outline-color .15s, transform .15s;
+}
+.menu-card:hover { transform: translateY(-2px); }
+.menu-card.is-selected { outline-color: var(--accent); }
+
+.menu-card__image { aspect-ratio: 4 / 3; background: var(--accent-soft); }
+.menu-card__image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.menu-card__placeholder {
+    display: grid;
+    place-items: center;
+    height: 100%;
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--accent);
+    opacity: .5;
+}
+
+.menu-card__body { padding: 12px 14px 14px; display: grid; gap: 4px; }
+.menu-card__name { font-weight: 700; }
+.menu-card__price { margin: 0 0 8px; color: var(--accent); font-weight: 700; }
+
+.stepper {
+    display: grid;
+    grid-template-columns: 36px 1fr 36px;
+    align-items: center;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    overflow: hidden;
+}
+.stepper__btn {
+    height: 36px;
+    border: 0;
+    background: transparent;
+    font-size: 18px;
+    color: var(--accent);
+    cursor: pointer;
+}
+.stepper__btn:hover { background: var(--accent-soft); }
+.stepper input {
+    width: 100%;
+    border: 0;
+    text-align: center;
+    font: inherit;
+    font-weight: 700;
+    background: transparent;
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+.stepper input::-webkit-inner-spin-button,
+.stepper input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+.checkout {
+    position: sticky;
+    top: 76px;
+    display: grid;
+    gap: 16px;
+    padding: 20px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+.checkout__member { display: grid; gap: 4px; }
+.checkout__label { font-size: 12px; color: var(--muted); }
+.checkout__member-name {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-weight: 700;
+    text-align: left;
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-underline-offset: 4px;
+}
+.checkout__summary {
+    margin: 0;
+    padding-top: 12px;
+    border-top: 1px dashed var(--line);
+    display: grid;
+    gap: 4px;
+}
+.checkout__summary div { display: flex; justify-content: space-between; align-items: baseline; }
+.checkout__summary dd { margin: 0; }
+.checkout__summary .discount { color: #2e7d4f; font-size: 14px; }
+.checkout__summary .total { font-weight: 700; }
+.checkout__summary .total dd { font-size: 24px; }
+.checkout__note { margin: 0; font-size: 12px; color: var(--muted); }
+
+.btn {
+    padding: 10px 18px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+.btn--primary { background: var(--accent); color: var(--accent-ink); }
+.btn--primary:hover { filter: brightness(1.08); }
+.btn--ghost { background: transparent; border-color: var(--line); color: var(--muted); }
+.btn--ghost:hover { border-color: #d9a39b; color: #8a2a22; }
+
+/* ---- 注文一覧 ---- */
+
+.orders {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+}
+
+.order-card {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+.order-card__head, .order-card__foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+.order-card__id, .order-card__customer { font-size: 12px; color: var(--muted); }
+.order-card__lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.order-card__lines li { display: flex; justify-content: space-between; }
+.order-card__progress { font-size: 12px; font-weight: 700; color: #9a6400; }
+.line-state { margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.line-state--cooking { background: #fff1d6; color: #9a6400; }
+.line-state--done { background: #dff3e6; color: #22703f; }
+.order-card__amounts { margin: 0; padding-top: 8px; border-top: 1px dashed var(--line); font-size: 14px; }
+.order-card__amounts div { display: flex; justify-content: space-between; }
+.order-card__amounts dd { margin: 0; }
+.order-card__amounts .discount { color: #2e7d4f; }
+.order-card__amounts .total { font-weight: 700; font-size: 16px; }
+.order-card__foot form { margin: 0; }
+
+.badge {
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+.badge--preparing { background: #fff1d6; color: #9a6400; }
+.badge--ready { background: #dff3e6; color: #22703f; }
+.badge--picked_up { background: #eceae7; color: #6b625b; }
+.badge--cancelled { background: #f6e1df; color: #8a2a22; }
+
+.empty { color: var(--muted); }
+
+/* ---- 擬似ログイン(会員チップ・会員選択ダイアログ) ---- */
+
+.member-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px 4px 4px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    font: inherit;
+    color: var(--ink);
+    cursor: pointer;
+}
+.member-chip:hover { border-color: var(--accent); }
+.member-chip__text { display: grid; text-align: left; line-height: 1.25; }
+.member-chip__name { font-weight: 700; font-size: 13px; white-space: nowrap; }
+.member-chip__meta { font-size: 11px; color: var(--muted); }
+.member-chip__meta:empty { display: none; }
+.member-chip__avatar {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 700;
+}
+.rank--silver { background: #e6e9ee; color: #55606e; }
+.rank--gold { background: #f8e7b5; color: #8a6500; }
+
+.member-dialog {
+    width: min(420px, calc(100% - 32px));
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius);
+    box-shadow: 0 20px 60px rgba(40, 25, 10, .25);
+    color: var(--ink);
+}
+.member-dialog::backdrop { background: rgba(47, 36, 29, .4); backdrop-filter: blur(2px); }
+.member-dialog__inner { display: grid; gap: 12px; padding: 24px; }
+.member-dialog h2 { margin: 0; font-size: 18px; }
+.member-dialog__lead { margin: 0; font-size: 13px; color: var(--muted); }
+.member-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.member-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.member-option:hover { border-color: var(--accent); background: #fffaf4; }
+.member-option.is-suspended { opacity: .6; }
+.member-option__text { display: grid; line-height: 1.4; }
+.member-option__text small { color: var(--muted); }
+.member-dialog__actions { display: flex; justify-content: space-between; }
+
+/* ---- 注文一覧のタブ ---- */
+
+.section-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.section-head .section-title { margin: 0; }
+.tabs { display: flex; padding: 3px; background: var(--accent-soft); border-radius: 999px; }
+.tab {
+    padding: 6px 14px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    font: inherit;
+    font-size: 13px;
+    color: var(--muted);
+    cursor: pointer;
+}
+.tab.is-active { background: var(--surface); color: var(--ink); font-weight: 700; box-shadow: var(--shadow); }
+.tab:disabled { opacity: .4; cursor: not-allowed; }
+.order-card.is-mine { outline: 2px solid var(--accent-soft); }
+
+@media (max-width: 760px) {
+    .topbar { padding: 8px 16px; }
+    .topbar nav a { display: none; }  /* スマホでは会員チップだけ残す */
+    .order-form { grid-template-columns: 1fr; }
+    .menu-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .checkout { position: static; }
+}

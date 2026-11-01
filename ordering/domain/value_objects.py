@@ -15,6 +15,9 @@ class OrderStatus(StrEnum):
     PLACED ──▶ PREPARING ──▶ READY ──▶ PICKED_UP
        │
        └────▶ CANCELLED(調理開始前のみ)
+
+    PREPARING / READY は注文が自分で決める: 明細の調理状況(LineCookingStatus)を見て、
+    どれか 1 つでも作り始めたら PREPARING、全部できあがったら READY。
     """
 
     PLACED = "PLACED"
@@ -22,6 +25,17 @@ class OrderStatus(StrEnum):
     READY = "READY"
     PICKED_UP = "PICKED_UP"
     CANCELLED = "CANCELLED"
+
+
+class LineCookingStatus(StrEnum):
+    """注文明細 1 行ごとの調理状況。キッチンは明細(商品)ごとに作るので、明細ごとに持つ。
+
+    WAITING ──▶ COOKING ──▶ DONE(kitchen の CookingStarted / CookingCompleted で進む)
+    """
+
+    WAITING = "WAITING"
+    COOKING = "COOKING"
+    DONE = "DONE"
 
 
 # 「受取が済むまで」の注文。同時に進行中の注文数の上限チェックで数える対象。
@@ -95,6 +109,9 @@ class OrderLine(ValueObject):
     name: str
     unit_price: Money
     quantity: int
+    # 調理状況は明細と一緒に持つ。値オブジェクトなので、進めるときは Order が
+    # dataclasses.replace で新しい明細に差し替える。
+    cooking_status: LineCookingStatus = LineCookingStatus.WAITING
 
     def __post_init__(self) -> None:
         # 値オブジェクトは「不正な値では生成できない」ようにしておく。

@@ -1,0 +1,38 @@
+# 座席構成ファイル。席の「形」(エリア・定員・見取り図上の位置)をここで管理する。
+# 書き換えたら次のコマンドで DB に反映する(何度流しても同じ結果になる):
+#
+#   uv run python manage.py apply_seat_layout
+#
+# - 席の同一性は席コード(code)で判定する。コードを変えると「撤去して新設」になる
+# - 反映しても席のステータス(空き / 予約中 / 使用中)は保たれる
+# - ファイルから消した席は撤去される。予約中・使用中の席があると反映ごと断られる
+# - row / col はエリアの見取り図で何行何列目に描くか(1 始まり)。capacity を省くと 1 人席
+# - エリアは書いた順に画面に並ぶ
+
+areas:
+  - code: counter
+    name: カウンター
+    seats:
+      - {code: C1, row: 1, col: 1}
+      - {code: C2, row: 1, col: 2}
+      - {code: C3, row: 1, col: 3}
+      - {code: C4, row: 1, col: 4}
+      - {code: C5, row: 1, col: 5}
+      - {code: C6, row: 1, col: 6}
+
+  - code: table
+    name: テーブル席
+    seats:
+      - {code: T1, row: 1, col: 1, capacity: 2}
+      - {code: T2, row: 1, col: 2, capacity: 2}
+      - {code: T3, row: 1, col: 3, capacity: 4}
+      - {code: T4, row: 2, col: 1, capacity: 4}
+      - {code: T5, row: 2, col: 2, capacity: 4}
+      - {code: T6, row: 2, col: 3, capacity: 6}
+
+  - code: terrace
+    name: テラス
+    seats:
+      - {code: R1, row: 1, col: 1, capacity: 2}
+      - {code: R2, row: 1, col: 2, capacity: 2}
+      - {code: R3, row: 2, col: 1, capacity: 4}

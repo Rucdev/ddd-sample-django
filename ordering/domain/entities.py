@@ -1,12 +1,14 @@
 import uuid
 from collections.abc import Iterable
+from dataclasses import replace
 
 from ordering.domain.events import OrderCancelled, OrderedItem, OrderPickedUp, OrderPlaced
-from ordering.domain.exceptions import EmptyOrder, InvalidOrderTransition
+from ordering.domain.exceptions import EmptyOrder, InvalidOrderTransition, OrderLineNotFound
 from ordering.domain.value_objects import (
     NO_DISCOUNT,
     ZERO_YEN,
     DiscountRate,
+    LineCookingStatus,
     Money,
     OrderLine,
     OrderStatus,
@@ -63,7 +65,10 @@ class Order(Entity):
             OrderPlaced(
                 order_id=order.id,
                 customer_id=customer_id,
-                items=tuple(OrderedItem(name=line.name, quantity=line.quantity) for line in order.lines),
+                items=tuple(
+                    OrderedItem(line_no=no, name=line.name, quantity=line.quantity)
+                    for no, line in enumerate(order.lines, start=1)
+                ),
             )
         )
         return order
@@ -86,13 +91,33 @@ class Order(Entity):
     # 遷移元が想定外なら InvalidOrderTransition を投げる。どの遷移が許されるかは
     # OrderStatus の docstring の図を参照。
 
-    def start_preparing(self) -> None:
-        """調理が始まった(kitchen の `CookingStarted` を受けて呼ばれる)。"""
-        self._transition(OrderStatus.PLACED, OrderStatus.PREPARING, "start preparing")
+    # キッチンは明細(商品)ごとに作るので、調理の進み具合は明細単位で届く。注文としての
+    # 「調理中」「受取可」は、届いた明細の状況から注文自身が決める(キッチンは注文単位の
+    # 足並みを気にしない)。
 
-    def mark_ready(self) -> None:
-        """調理が終わり受取可になった(kitchen の `CookingCompleted` を受けて呼ばれる)。"""
-        self._transition(OrderStatus.PREPARING, OrderStatus.READY, "become ready")
+    def start_cooking_line(self, line_no: int) -> None:
+        """明細 1 行の調理が始まった(kitchen の `CookingStarted` を受けて呼ばれる)。
+        最初の 1 行が始まったところで注文は「調理中」になる。
+        """
+        if self.status not in (OrderStatus.PLACED, OrderStatus.PREPARING):
+            raise InvalidOrderTransition(self.id, self.status, "start cooking")
+        self._advance_line(line_no, LineCookingStatus.WAITING, LineCookingStatus.COOKING)
+        self.status = OrderStatus.PREPARING
+
+    def complete_cooking_line(self, line_no: int) -> None:
+        """明細 1 行の調理が終わった(kitchen の `CookingCompleted` を受けて呼ばれる)。
+        全部の明細ができあがったら注文は「受取可」になる。
+        """
+        if self.status != OrderStatus.PREPARING:
+            raise InvalidOrderTransition(self.id, self.status, "complete cooking")
+        self._advance_line(line_no, LineCookingStatus.COOKING, LineCookingStatus.DONE)
+        if all(line.cooking_status == LineCookingStatus.DONE for line in self.lines):
+            self.status = OrderStatus.READY
+
+    @property
+    def cooked_line_count(self) -> int:
+        """できあがった明細の数(画面で「2/3 品できあがり」と出す用)。"""
+        return sum(1 for line in self.lines if line.cooking_status == LineCookingStatus.DONE)
 
     def pick_up(self) -> None:
         self._transition(OrderStatus.READY, OrderStatus.PICKED_UP, "be picked up")
@@ -104,6 +129,18 @@ class Order(Entity):
         """キャンセルできるのは調理開始前(PLACED)だけ。作り始めた商品は取り消せない。"""
         self._transition(OrderStatus.PLACED, OrderStatus.CANCELLED, "be cancelled")
         self.record_event(OrderCancelled(order_id=self.id, customer_id=self.customer_id))
+
+    def _advance_line(self, line_no: int, expected: LineCookingStatus, to: LineCookingStatus) -> None:
+        if not 1 <= line_no <= len(self.lines):
+            raise OrderLineNotFound(self.id, line_no)
+        line = self.lines[line_no - 1]
+        if line.cooking_status != expected:
+            raise InvalidOrderTransition(
+                self.id, f"line {line_no} {line.cooking_status}", f"move line {line_no} to {to}"
+            )
+        lines = list(self.lines)
+        lines[line_no - 1] = replace(line, cooking_status=to)
+        self.lines = tuple(lines)
 
     def _transition(self, expected: OrderStatus, to: OrderStatus, action: str) -> None:
         if self.status != expected:

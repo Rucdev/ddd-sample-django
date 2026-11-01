@@ -34,6 +34,11 @@ def get_customer(customer_id: uuid.UUID) -> CustomerDTO | None:
     return _to_dto(customer) if customer else None
 
 
+def list_customers() -> list[CustomerDTO]:
+    """会員の一覧。注文画面の「会員を選ぶ」ダイアログ(擬似ログイン)に並べる。"""
+    return [_to_dto(customer) for customer in Customer.objects.order_by("email")]
+
+
 def add_points(customer_id: uuid.UUID, points: int) -> None:
     # F 式で DB 側で加算する(読んでから書く間に別の加算が入っても取りこぼさない)。
     Customer.objects.filter(id=customer_id).update(points=F("points") + points)

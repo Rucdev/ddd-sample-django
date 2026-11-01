@@ -119,8 +119,8 @@ class PlaceOrderUseCaseTests(TestCase):
     def test_picked_up_orders_do_not_count_as_in_progress(self) -> None:
         for _ in range(MAX_IN_PROGRESS_ORDERS):
             order = make_order(self.customer.id)
-            order.start_preparing()
-            order.mark_ready()
+            order.start_cooking_line(1)
+            order.complete_cooking_line(1)
             order.pick_up()
             self.repository.save(order)
 

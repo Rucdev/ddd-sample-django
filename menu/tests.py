@@ -1,5 +1,7 @@
 import uuid
 
+from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 
@@ -16,6 +18,29 @@ class MenuItemModelTests(TestCase):
 
         with self.assertRaises(IntegrityError), transaction.atomic():
             MenuItem.objects.create(category=self.category, name="カフェラテ", price=500)
+
+    def test_svg_image_upload_is_rejected(self) -> None:
+        # SVG はスクリプトを埋め込めるので、管理サイトからのアップロードは受け付けない(保存型 XSS 対策)
+        item = MenuItem(
+            category=self.category,
+            name="カフェラテ",
+            price=450,
+            image=SimpleUploadedFile("evil.svg", b"<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>"),
+        )
+
+        with self.assertRaises(ValidationError) as ctx:
+            item.full_clean()
+        self.assertIn("image", ctx.exception.message_dict)
+
+    def test_raster_image_upload_is_accepted(self) -> None:
+        item = MenuItem(
+            category=self.category,
+            name="カフェラテ",
+            price=450,
+            image=SimpleUploadedFile("latte.webp", b"RIFF....WEBP"),
+        )
+
+        item.full_clean()  # should not raise
 
     def test_default_status_is_on_sale(self) -> None:
         item = MenuItem.objects.create(category=self.category, name="カフェラテ", price=450)
@@ -39,6 +64,16 @@ class PublicApiTests(TestCase):
         self.assertEqual(dto.price, 450)
         self.assertEqual(dto.category_name, "ドリンク")
         self.assertTrue(dto.is_available)
+        self.assertIsNone(dto.image_url)
+
+    def test_get_menu_item_exposes_image_url(self) -> None:
+        self.latte.image = "menu_items/latte.png"
+        self.latte.save()
+
+        dto = public.get_menu_item(self.latte.id)
+
+        assert dto is not None
+        self.assertEqual(dto.image_url, "/media/menu_items/latte.png")
 
     def test_get_menu_item_reflects_sold_out(self) -> None:
         dto = public.get_menu_item(self.mocha.id)
@@ -53,18 +88,3 @@ class PublicApiTests(TestCase):
         names = [item.name for item in public.list_available_menu_items()]
 
         self.assertEqual(names, ["カフェラテ"])
-
-    def test_out_of_stock_item_is_not_available(self) -> None:
-        public.set_out_of_stock(self.latte.id, True)
-
-        dto = public.get_menu_item(self.latte.id)
-        assert dto is not None
-        self.assertFalse(dto.is_available)
-        self.assertEqual(public.list_available_menu_items(), [])
-
-    def test_out_of_stock_does_not_change_manual_status(self) -> None:
-        public.set_out_of_stock(self.mocha.id, True)
-        public.set_out_of_stock(self.mocha.id, False)
-
-        self.mocha.refresh_from_db()
-        self.assertEqual(self.mocha.status, MenuItem.Status.SOLD_OUT)

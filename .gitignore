@@ -205,3 +205,9 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# admin からアップロードした商品画像。デモ用の画像(media/menu_items/demo/)だけはコミットする
+/media/*
+!/media/menu_items/
+/media/menu_items/*
+!/media/menu_items/demo/

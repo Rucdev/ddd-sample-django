@@ -14,15 +14,21 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from config.views import home_view
+from config.views import home_view, serve_media
 
 urlpatterns = [
     path('', home_view, name='home'),
     path('admin/', admin.site.urls),
     path('orders/', include('ordering.presentation.urls')),
     path('kitchen/', include('kitchen.presentation.urls')),
-    path('inventory/', include('inventory.urls')),
+    path('seating/', include('seating.presentation.urls')),
 ]
+
+# 開発サーバでアップロード画像(MEDIA)を配信する。DEBUG=False では何も足さない。
+# スクリプト入りのファイルを直接開かれても動かないよう、ヘッダを付ける serve_media を使う。
+urlpatterns += static(settings.MEDIA_URL, view=serve_media, document_root=settings.MEDIA_ROOT)

@@ -3,8 +3,14 @@ from unittest import TestCase
 
 from ordering.domain.entities import Order
 from ordering.domain.events import OrderCancelled, OrderedItem, OrderPickedUp, OrderPlaced
-from ordering.domain.exceptions import EmptyOrder, InvalidOrderTransition
-from ordering.domain.value_objects import DiscountRate, Money, OrderLine, OrderStatus
+from ordering.domain.exceptions import EmptyOrder, InvalidOrderTransition, OrderLineNotFound
+from ordering.domain.value_objects import (
+    DiscountRate,
+    LineCookingStatus,
+    Money,
+    OrderLine,
+    OrderStatus,
+)
 
 
 def _line(name: str = "カフェラテ", price: int = 450, quantity: int = 1) -> OrderLine:
@@ -19,10 +25,15 @@ def _make_order(*lines: OrderLine, discount_rate: DiscountRate = DiscountRate(0)
     )
 
 
+def _cook_all(order: Order) -> None:
+    for line_no in range(1, len(order.lines) + 1):
+        order.start_cooking_line(line_no)
+        order.complete_cooking_line(line_no)
+
+
 def _ready_order() -> Order:
     order = _make_order()
-    order.start_preparing()
-    order.mark_ready()
+    _cook_all(order)
     order.collect_events()
     return order
 
@@ -46,7 +57,10 @@ class OrderPlaceTests(TestCase):
         self.assertEqual(event.order_id, order.id)
         self.assertEqual(
             event.items,
-            (OrderedItem(name="カフェラテ", quantity=2), OrderedItem(name="スコーン", quantity=1)),
+            (
+                OrderedItem(line_no=1, name="カフェラテ", quantity=2),
+                OrderedItem(line_no=2, name="スコーン", quantity=1),
+            ),
         )
 
 
@@ -70,17 +84,16 @@ class OrderTransitionTests(TestCase):
     def test_happy_path_to_picked_up(self) -> None:
         order = _make_order()
 
-        order.start_preparing()
+        order.start_cooking_line(1)
         self.assertEqual(order.status, OrderStatus.PREPARING)
-        order.mark_ready()
+        order.complete_cooking_line(1)
         self.assertEqual(order.status, OrderStatus.READY)
         order.pick_up()
         self.assertEqual(order.status, OrderStatus.PICKED_UP)
 
     def test_pick_up_records_event_with_total(self) -> None:
         order = _make_order(_line(price=500, quantity=2), discount_rate=DiscountRate(10))
-        order.start_preparing()
-        order.mark_ready()
+        _cook_all(order)
         order.collect_events()
 
         order.pick_up()
@@ -104,11 +117,55 @@ class OrderTransitionTests(TestCase):
         with self.assertRaises(InvalidOrderTransition):
             order.pick_up()
 
-    def test_cannot_mark_ready_before_preparing(self) -> None:
+    def test_cannot_complete_line_before_it_starts(self) -> None:
         order = _make_order()
 
         with self.assertRaises(InvalidOrderTransition):
-            order.mark_ready()
+            order.complete_cooking_line(1)
+
+
+class OrderLineCookingTests(TestCase):
+    """キッチンは明細(商品)ごとに進めるので、注文の状況は明細の状況から決まる。"""
+
+    def setUp(self) -> None:
+        self.order = _make_order(_line("カフェラテ"), _line("ホットサンド", price=650))
+
+    def _line_states(self) -> list[LineCookingStatus]:
+        return [line.cooking_status for line in self.order.lines]
+
+    def test_first_line_started_makes_order_preparing(self) -> None:
+        self.order.start_cooking_line(2)
+
+        self.assertEqual(self.order.status, OrderStatus.PREPARING)
+        self.assertEqual(self._line_states(), [LineCookingStatus.WAITING, LineCookingStatus.COOKING])
+
+    def test_order_is_ready_only_when_every_line_is_done(self) -> None:
+        self.order.start_cooking_line(1)
+        self.order.complete_cooking_line(1)
+        self.assertEqual(self.order.status, OrderStatus.PREPARING)
+        self.assertEqual(self.order.cooked_line_count, 1)
+
+        self.order.start_cooking_line(2)
+        self.order.complete_cooking_line(2)
+        self.assertEqual(self.order.status, OrderStatus.READY)
+
+    def test_lines_progress_in_any_order(self) -> None:
+        self.order.start_cooking_line(2)
+        self.order.start_cooking_line(1)
+        self.order.complete_cooking_line(2)
+        self.order.complete_cooking_line(1)
+
+        self.assertEqual(self.order.status, OrderStatus.READY)
+
+    def test_same_line_cannot_start_twice(self) -> None:
+        self.order.start_cooking_line(1)
+
+        with self.assertRaises(InvalidOrderTransition):
+            self.order.start_cooking_line(1)
+
+    def test_unknown_line(self) -> None:
+        with self.assertRaises(OrderLineNotFound):
+            self.order.start_cooking_line(3)
 
 
 class OrderCancelTests(TestCase):
@@ -124,8 +181,8 @@ class OrderCancelTests(TestCase):
         self.assertIsInstance(events[0], OrderCancelled)
 
     def test_cannot_cancel_once_preparing(self) -> None:
-        order = _make_order()
-        order.start_preparing()
+        order = _make_order(_line(), _line("スコーン", price=300))
+        order.start_cooking_line(2)  # 1 品でも作り始めたらキャンセルできない
 
         with self.assertRaises(InvalidOrderTransition):
             order.cancel()
@@ -134,9 +191,9 @@ class OrderCancelTests(TestCase):
         with self.assertRaises(InvalidOrderTransition):
             _ready_order().cancel()
 
-    def test_cancelled_order_cannot_start_preparing(self) -> None:
+    def test_cancelled_order_cannot_start_cooking(self) -> None:
         order = _make_order()
         order.cancel()
 
         with self.assertRaises(InvalidOrderTransition):
-            order.start_preparing()
+            order.start_cooking_line(1)

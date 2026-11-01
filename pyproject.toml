@@ -9,6 +9,7 @@ dependencies = [
     "django>=6.0.3",
     "django-filter>=26.2",
     "djangorestframework>=3.17.1",
+    "pyyaml>=6.0.3",
 ]
 
 # 開発時のみ使う依存パッケージ（`uv sync` で既定でインストールされる）
@@ -31,7 +32,7 @@ root_packages = [
     "customers",
     "ordering",
     "kitchen",
-    "inventory",
+    "seating",
 ]
 # django などの外部パッケージも依存グラフに含める（ドメイン層の Django 非依存チェックに必要）
 include_external_packages = true
@@ -40,72 +41,79 @@ include_external_packages = true
 [[tool.importlinter.contracts]]
 name = "menu's internals are only reachable through menu.public"
 type = "forbidden"
-source_modules = ["ordering", "kitchen", "customers", "inventory"]
+source_modules = ["ordering", "kitchen", "customers", "seating"]
 forbidden_modules = ["menu"]
 # 例外として許可する import
 ignore_imports = [
     "ordering.** -> menu.public",
-    "inventory.** -> menu.public",
     # テストのフィクスチャは、モジュールをまたいだ状態を準備するために他モジュールの
     # models へ直接触れてよい。public.py 経由を強制するのはプロダクションコードだけ。
     "ordering.tests.** -> menu.**",
-    "inventory.tests.** -> menu.**",
 ]
 
 # customers の内部実装には他モジュールから直接触らせない。公開窓口は customers.public のみ
 [[tool.importlinter.contracts]]
 name = "customers's internals are only reachable through customers.public"
 type = "forbidden"
-source_modules = ["ordering", "kitchen", "menu", "inventory"]
+source_modules = ["ordering", "kitchen", "menu", "seating"]
 forbidden_modules = ["customers"]
 ignore_imports = [
     "ordering.** -> customers.public",
     # テストからの直接参照は許可
     "ordering.tests.** -> customers.**",
     "kitchen.tests.** -> customers.**",
-    "inventory.tests.** -> customers.**",
 ]
 
 # ordering の公開窓口は ordering.public と、購読用のドメインイベント ordering.domain.events のみ
 [[tool.importlinter.contracts]]
 name = "ordering's internals are only reachable through ordering.public or ordering.domain.events"
 type = "forbidden"
-source_modules = ["kitchen", "menu", "customers", "inventory"]
+source_modules = ["kitchen", "menu", "customers", "seating"]
 forbidden_modules = ["ordering"]
 # kitchen が ordering から受け取るのはイベントだけ（ordering.public は使わない）
 ignore_imports = [
     "kitchen.** -> ordering.domain.events",
     "customers.** -> ordering.domain.events",
-    "inventory.** -> ordering.domain.events",
     # テストからの直接参照は許可
     "kitchen.tests.** -> ordering.**",
-    "inventory.tests.** -> ordering.**",
 ]
 
 # kitchen の公開窓口は kitchen.public と、購読用のドメインイベント kitchen.domain.events のみ
 [[tool.importlinter.contracts]]
 name = "kitchen's internals are only reachable through kitchen.public or kitchen.domain.events"
 type = "forbidden"
-source_modules = ["ordering", "menu", "customers", "inventory"]
+source_modules = ["ordering", "menu", "customers", "seating"]
 forbidden_modules = ["kitchen"]
 # ordering は kitchen.public も使わない（照会し合うと双方向の依存になるため。CONTEXT-MAP.md 参照）
 ignore_imports = [
     "ordering.** -> kitchen.domain.events",
 ]
 
-# inventory の内部実装には他モジュールから直接触らせない。公開窓口は inventory.public のみ
+# seating の内部実装には他モジュールから直接触らせない。公開窓口は seating.public のみ
 [[tool.importlinter.contracts]]
-name = "inventory's internals are only reachable through inventory.public"
+name = "seating's internals are only reachable through seating.public"
 type = "forbidden"
 source_modules = ["ordering", "kitchen", "menu", "customers"]
-forbidden_modules = ["inventory"]
-ignore_imports = [
-    "ordering.** -> inventory.public",
-]
+forbidden_modules = ["seating"]
 
 # ドメイン層は純粋な Python に保ち、Django に依存させない
 [[tool.importlinter.contracts]]
 name = "domain layers stay Django-free"
 type = "forbidden"
-source_modules = ["ordering.domain", "kitchen.domain", "shared.domain"]
-forbidden_modules = ["django"]
+source_modules = ["ordering.domain", "kitchen.domain", "seating.domain", "shared.domain"]
+# seating の座席構成ファイルの読み込み(YAML)もドメインの外(infrastructure/layout_file.py)に置く
+forbidden_modules = ["django", "yaml"]
+
+# ordering の presentation は View を commands/(C)と queries/(Q)に分ける。
+# 参照側の View はユースケースを呼ばず、コマンド側の View は参照用の queries.py を使わない。
+[[tool.importlinter.contracts]]
+name = "ordering query views do not call use cases"
+type = "forbidden"
+source_modules = ["ordering.presentation.queries"]
+forbidden_modules = ["ordering.application.use_cases", "ordering.presentation.commands"]
+
+[[tool.importlinter.contracts]]
+name = "ordering command views do not read through queries"
+type = "forbidden"
+source_modules = ["ordering.presentation.commands"]
+forbidden_modules = ["ordering.application.queries", "ordering.presentation.queries"]

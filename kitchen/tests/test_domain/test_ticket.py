@@ -8,7 +8,7 @@ from kitchen.domain.value_objects import TicketItem, TicketStatus
 
 
 def _make_ticket() -> Ticket:
-    return Ticket.open(order_id=uuid.uuid4(), items=[TicketItem(name="カフェラテ", quantity=2)])
+    return Ticket.open(order_id=uuid.uuid4(), line_no=2, item=TicketItem(name="カフェラテ", quantity=2))
 
 
 class TicketTests(TestCase):
@@ -28,7 +28,7 @@ class TicketTests(TestCase):
         self.assertEqual(len(events), 1)
         event = events[0]
         assert isinstance(event, CookingStarted)
-        self.assertEqual(event.order_id, ticket.order_id)
+        self.assertEqual((event.order_id, event.line_no), (ticket.order_id, 2))
 
     def test_complete_records_event(self) -> None:
         ticket = _make_ticket()

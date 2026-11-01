@@ -54,6 +54,8 @@ class OrderLineModel(models.Model):
     name = models.CharField(max_length=128)
     unit_price = models.PositiveIntegerField()
     quantity = models.PositiveSmallIntegerField()
+    # キッチンでの調理状況(ドメインの LineCookingStatus)。明細の並び(id 順)が line_no になる。
+    cooking_status = models.CharField(max_length=16, default="WAITING")
 
     class Meta:
         db_table = "ordering_order_line"

@@ -15,23 +15,21 @@ class CompleteCookingInput:
 
 
 @dataclass(frozen=True)
-class TicketItemDTO:
-    name: str
-    quantity: int
-
-
-@dataclass(frozen=True)
 class TicketDTO:
     id: uuid.UUID
     order_id: uuid.UUID
+    line_no: int
+    name: str
+    quantity: int
     status: str
-    items: tuple[TicketItemDTO, ...]
 
     @classmethod
     def from_entity(cls, ticket: Ticket) -> "TicketDTO":
         return cls(
             id=ticket.id,
             order_id=ticket.order_id,
+            line_no=ticket.line_no,
+            name=ticket.item.name,
+            quantity=ticket.item.quantity,
             status=ticket.status.value,
-            items=tuple(TicketItemDTO(name=i.name, quantity=i.quantity) for i in ticket.items),
         )
