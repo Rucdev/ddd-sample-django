@@ -16,6 +16,12 @@ class PlaceOrderSerializer(serializers.Serializer):
     lines = PlaceOrderLineSerializer(many=True)
 
 
+class PlaceSeatOrderSerializer(serializers.Serializer):
+    """席からの注文。会員 ID は受け取らない(席は URL で指す)。"""
+
+    lines = PlaceOrderLineSerializer(many=True)
+
+
 class OrderLineSerializer(serializers.Serializer):
     menu_item_id = serializers.UUIDField()
     name = serializers.CharField()
@@ -27,10 +33,21 @@ class OrderLineSerializer(serializers.Serializer):
 
 class OrderSerializer(serializers.Serializer):
     id = serializers.UUIDField()
-    customer_id = serializers.UUIDField()
+    order_type = serializers.CharField()
+    customer_id = serializers.UUIDField(allow_null=True)
+    bill_id = serializers.UUIDField(allow_null=True)
     status = serializers.CharField()
     lines = OrderLineSerializer(many=True)
     subtotal = serializers.IntegerField()
     discount = serializers.IntegerField()
     total = serializers.IntegerField()
     cooked_line_count = serializers.IntegerField()
+
+
+class BillSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    seat_id = serializers.UUIDField()
+    seat_code = serializers.CharField()
+    status = serializers.CharField()
+    orders = OrderSerializer(many=True)
+    amount_due = serializers.IntegerField()

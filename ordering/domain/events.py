@@ -22,10 +22,12 @@ class OrderedItem:
 class OrderPlaced(DomainEvent):
     """注文が受け付けられたことを表すドメインイベント。kitchen モジュールが購読し、
     調理チケットを作る(kitchen/infrastructure/event_handlers.py)。
+
+    店内注文(席からの注文)は会員と結びつかないので `customer_id` は None になる。
     """
 
     order_id: uuid.UUID
-    customer_id: uuid.UUID
+    customer_id: uuid.UUID | None
     items: tuple[OrderedItem, ...]
 
 
@@ -36,13 +38,16 @@ class OrderCancelled(DomainEvent):
     """
 
     order_id: uuid.UUID
-    customer_id: uuid.UUID
+    customer_id: uuid.UUID | None
 
 
 @dataclass(frozen=True, kw_only=True)
 class OrderPickedUp(DomainEvent):
     """商品が受け取られたことを表すドメインイベント。customers モジュールが購読し、
     支払額に応じてポイントを付与する(customers/event_handlers.py)。
+
+    受取は持ち帰りの注文だけなので、`customer_id` は必ずある。店内注文の提供(serve)では
+    このイベントは出ない(会員と結びつかないのでポイントも付かない)。
     """
 
     order_id: uuid.UUID

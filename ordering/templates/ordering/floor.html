@@ -1,0 +1,105 @@
+{% load static %}<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ホール</title>
+    <link rel="stylesheet" href="{% static 'ordering/order.css' %}">
+</head>
+<body>
+{# ホール画面(店員側)。利用中の席ごとに、席から頼まれた注文と会計の金額を出す。 #}
+{# キッチンでできあがった注文は「提供待ち」になるので、席まで運んだら「提供完了」を押す。 #}
+{# 会計は席の退席(座席画面)で支払済になる。 #}
+<header class="topbar">
+    <a class="brand" href="{% url 'home' %}">☕ Cafe Mobile Order</a>
+    <nav>
+        <span class="topbar__hint">提供待ち <strong>{{ waiting_total }}</strong> 件 · 15秒ごとに自動更新</span>
+        <a href="{% url 'seating:seat_board' %}">座席画面</a>
+        <a href="{% url 'kitchen:ticket_list' %}">キッチン画面</a>
+        <a href="{% url 'home' %}">トップ</a>
+    </nav>
+</header>
+
+<main class="container">
+    {% if messages %}
+    <ul class="messages">
+        {% for message in messages %}
+        <li class="message message--{{ message.tags|default:'info' }}">{{ message }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    <section>
+        <h1 class="section-title">利用中の席</h1>
+        <div class="bills">
+            {% for entry in bills %}
+            {% with bill=entry.bill %}
+            <article class="bill-card{% if entry.waiting %} has-waiting{% endif %}">
+                <header class="bill-card__head">
+                    <span class="bill-card__seat">{{ bill.seat_code }}</span>
+                    {% if entry.waiting %}<span class="badge badge--ready">提供待ち {{ entry.waiting }}</span>{% endif %}
+                    <a class="bill-card__link" href="{% url 'ordering:seat_order' bill.seat_id %}">席の注文画面</a>
+                </header>
+                <ul class="bill-card__orders">
+                    {% for row in entry.rows %}
+                    {% with order=row.order %}
+                    <li class="bill-order bill-order--{{ order.status|lower }}">
+                        <div class="bill-order__head">
+                            <span class="badge badge--{{ order.status|lower }}">{{ row.status_label }}</span>
+                            <code class="order-card__id">#{{ order.id|stringformat:"s"|slice:":4"|upper }}</code>
+                            <span class="bill-order__total">¥{{ order.total }}</span>
+                        </div>
+                        <ul class="order-card__lines">
+                            {% for line in order.lines %}
+                            <li><span>{{ line.name }}</span><span>× {{ line.quantity }}</span></li>
+                            {% endfor %}
+                        </ul>
+                        {% if order.status == "READY" %}
+                        <form method="post" action="{% url 'ordering:serve_order' order.id %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn--primary">提供完了</button>
+                        </form>
+                        {% endif %}
+                    </li>
+                    {% endwith %}
+                    {% empty %}
+                    <li class="empty">まだ注文はありません。</li>
+                    {% endfor %}
+                </ul>
+                <footer class="bill-card__foot">
+                    <span>お会計</span>
+                    <strong>¥{{ bill.amount_due }}</strong>
+                </footer>
+            </article>
+            {% endwith %}
+            {% empty %}
+            <p class="empty">利用中の席はありません。座席画面でお客様を案内すると、ここに席が出ます。</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    {% if paid_bills %}
+    <section>
+        <h1 class="section-title">最近のお会計(支払済)</h1>
+        <table class="paid-bills">
+            <thead><tr><th>席</th><th>注文数</th><th>お会計</th></tr></thead>
+            <tbody>
+                {% for bill in paid_bills %}
+                <tr><td>{{ bill.seat_code }}</td><td>{{ bill.orders|length }} 件</td><td>¥{{ bill.amount_due }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    {% endif %}
+</main>
+
+<script>
+// 15 秒ごとに再読み込みして、キッチンでできあがった注文(提供待ち)を拾う。操作中は止める。
+(function () {
+    let busy = false;
+    document.addEventListener("submit", function () { busy = true; });
+    setInterval(function () { if (!busy) location.reload(); }, 15000);
+})();
+</script>
+</body>
+</html>

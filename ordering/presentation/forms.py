@@ -6,14 +6,13 @@ from ordering.domain.value_objects import MAX_QUANTITY_PER_LINE
 # 検証はしない。ModelForm は画面と ORM モデルを直結させてしまうため DDD アプリでは使わない。
 
 
-class PlaceOrderForm(forms.Form):
-    """注文フォーム。販売中の商品ごとに数量欄を 1 つずつ動的に生やす。
+class MenuQuantityForm(forms.Form):
+    """販売中の商品ごとに数量欄を 1 つずつ動的に生やすフォーム。持ち帰りの注文フォームと
+    席からの注文フォームの共通部分。
 
     数量の上限(MAX_QUANTITY_PER_LINE)は入力欄の max 属性にも使うが、本当の検証は
     ドメイン層(OrderLine)が行う。ここで弾くのは「数値でない」「負の数」といった形式違反だけ。
     """
-
-    customer_id = forms.UUIDField(label="会員ID")
 
     def __init__(self, *args, menu_items, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -43,3 +42,13 @@ class PlaceOrderForm(forms.Form):
             if quantity > 0:
                 lines.append((item.id, quantity))
         return lines
+
+
+class PlaceOrderForm(MenuQuantityForm):
+    """持ち帰りの注文フォーム。注文するのは会員なので会員 ID が要る。"""
+
+    customer_id = forms.UUIDField(label="会員ID")
+
+
+class PlaceSeatOrderForm(MenuQuantityForm):
+    """席からの注文フォーム。会員登録は要らず、どの席かは URL で決まるので数量欄だけ。"""

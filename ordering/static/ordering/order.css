@@ -233,7 +233,7 @@ a { color: inherit; }
 }
 .badge--preparing { background: #fff1d6; color: #9a6400; }
 .badge--ready { background: #dff3e6; color: #22703f; }
-.badge--picked_up { background: #eceae7; color: #6b625b; }
+.badge--picked_up, .badge--served { background: #eceae7; color: #6b625b; }
 .badge--cancelled { background: #f6e1df; color: #8a2a22; }
 
 .empty { color: var(--muted); }
@@ -330,9 +330,62 @@ a { color: inherit; }
 .tab:disabled { opacity: .4; cursor: not-allowed; }
 .order-card.is-mine { outline: 2px solid var(--accent-soft); }
 
+/* ---- 店内: 席からの注文画面 ---- */
+
+.seat-chip {
+    padding: 4px 14px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 14px;
+    white-space: nowrap;
+}
+.seat-chip strong { font-size: 16px; }
+.seat-closed { padding: 48px 0; text-align: center; color: var(--muted); }
+.seat-closed .section-title { color: var(--ink); }
+.checkout__summary .bill-so-far { font-size: 13px; color: var(--muted); }
+.bill-total { font-size: 14px; color: var(--muted); }
+.bill-total strong { font-size: 20px; color: var(--ink); }
+
+/* ---- 店内: ホール画面 ---- */
+
+.topbar__hint { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.topbar__hint strong { color: var(--ink); }
+.bills {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+}
+.bill-card {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    gap: 12px;
+    padding: 16px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+.bill-card.has-waiting { outline: 2px solid #9fd3b2; }
+.bill-card__head { display: flex; align-items: center; gap: 8px; }
+.bill-card__seat { font-size: 20px; font-weight: 700; }
+.bill-card__link { margin-left: auto; font-size: 12px; color: var(--muted); }
+.bill-card__orders { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; align-content: start; }
+.bill-order { display: grid; gap: 6px; padding-bottom: 10px; border-bottom: 1px dashed var(--line); }
+.bill-order--served, .bill-order--cancelled { opacity: .55; }
+.bill-order__head { display: flex; align-items: center; gap: 8px; }
+.bill-order__total { margin-left: auto; font-weight: 700; }
+.bill-order form { margin: 0; }
+.bill-order .btn { width: 100%; }
+.bill-card__foot { display: flex; justify-content: space-between; align-items: baseline; }
+.bill-card__foot strong { font-size: 22px; }
+.paid-bills { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--radius); overflow: hidden; }
+.paid-bills th, .paid-bills td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--line); font-size: 14px; }
+.paid-bills th { color: var(--muted); font-weight: 400; }
+
 @media (max-width: 760px) {
     .topbar { padding: 8px 16px; }
-    .topbar nav a { display: none; }  /* スマホでは会員チップだけ残す */
+    .topbar nav a, .topbar__hint { display: none; }  /* スマホでは会員チップだけ残す */
     .order-form { grid-template-columns: 1fr; }
     .menu-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
     .checkout { position: static; }

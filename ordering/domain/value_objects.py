@@ -9,21 +9,36 @@ from shared.domain.value_object import ValueObject
 MAX_QUANTITY_PER_LINE = 10
 
 
+class OrderType(StrEnum):
+    """注文の種類。受け渡し方と、誰が注文の主体かが違う。
+
+    - TAKEOUT(持ち帰り): 会員がモバイルオーダーで頼み、カウンターで受け取る。会員 ID が必須。
+    - DINE_IN(店内): 席に座っているお客様が席から頼み、店員が席まで提供する。会員登録は不要で、
+      代わりに席の会計(Bill)に紐づく。支払いは会計ごとにまとめて行う。
+    """
+
+    TAKEOUT = "TAKEOUT"
+    DINE_IN = "DINE_IN"
+
+
 class OrderStatus(StrEnum):
     """注文ステータス。遷移は Order エンティティのメソッドだけが行う。
 
-    PLACED ──▶ PREPARING ──▶ READY ──▶ PICKED_UP
-       │
+                                 ┌──▶ PICKED_UP(持ち帰り: 受取)
+    PLACED ──▶ PREPARING ──▶ READY
+       │                         └──▶ SERVED(店内: 提供完了)
        └────▶ CANCELLED(調理開始前のみ)
 
     PREPARING / READY は注文が自分で決める: 明細の調理状況(LineCookingStatus)を見て、
     どれか 1 つでも作り始めたら PREPARING、全部できあがったら READY。
+    READY は持ち帰りなら「受取可」、店内なら「提供待ち」と呼ぶ(ordering/CONTEXT.md 参照)。
     """
 
     PLACED = "PLACED"
     PREPARING = "PREPARING"
     READY = "READY"
     PICKED_UP = "PICKED_UP"
+    SERVED = "SERVED"
     CANCELLED = "CANCELLED"
 
 
@@ -38,7 +53,7 @@ class LineCookingStatus(StrEnum):
     DONE = "DONE"
 
 
-# 「受取が済むまで」の注文。同時に進行中の注文数の上限チェックで数える対象。
+# 「受取(提供)が済むまで」の注文。同時に進行中の注文数の上限チェックで数える対象。
 IN_PROGRESS_STATUSES = frozenset({OrderStatus.PLACED, OrderStatus.PREPARING, OrderStatus.READY})
 
 
@@ -63,6 +78,16 @@ class Money(ValueObject):
 
 
 ZERO_YEN = Money(0)
+
+
+class BillStatus(StrEnum):
+    """会計のステータス。遷移は Bill エンティティのメソッドだけが行う。
+
+    OPEN ──▶ PAID(席の利用が終わったとき = 退席)
+    """
+
+    OPEN = "OPEN"
+    PAID = "PAID"
 
 
 @dataclass(frozen=True)

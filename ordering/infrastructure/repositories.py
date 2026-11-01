@@ -1,15 +1,19 @@
 import uuid
 
-from ordering.domain.entities import Order
+from django.utils import timezone
+
+from ordering.domain.entities import Bill, Order
 from ordering.domain.value_objects import (
     IN_PROGRESS_STATUSES,
+    BillStatus,
     DiscountRate,
     LineCookingStatus,
     Money,
     OrderLine,
     OrderStatus,
+    OrderType,
 )
-from ordering.infrastructure.models import OrderLineModel, OrderModel
+from ordering.infrastructure.models import BillModel, OrderLineModel, OrderModel
 
 
 class DjangoOrderRepository:
@@ -25,7 +29,9 @@ class DjangoOrderRepository:
         model, _ = OrderModel.objects.update_or_create(
             id=order.id,
             defaults={
+                "order_type": order.order_type.value,
                 "customer_id": order.customer_id,
+                "bill_id": order.bill_id,
                 "status": order.status.value,
                 "discount_percent": order.discount_rate.percent,
             },
@@ -58,6 +64,51 @@ class DjangoOrderRepository:
             customer_id=customer_id, status__in=[s.value for s in IN_PROGRESS_STATUSES]
         ).count()
 
+    def find_by_bill(self, bill_id: uuid.UUID) -> list[Order]:
+        queryset = (
+            OrderModel.objects.prefetch_related("lines").filter(bill_id=bill_id).order_by("created_at")
+        )
+        return [order_from_model(model) for model in queryset]
+
+
+class DjangoBillRepository:
+    """`BillRepository` の Django ORM 実装。"""
+
+    def save(self, bill: Bill) -> None:
+        current_status = BillModel.objects.filter(id=bill.id).values_list("status", flat=True).first()
+        defaults: dict = {
+            "seat_id": bill.seat_id,
+            "seat_code": bill.seat_code,
+            "status": bill.status.value,
+        }
+        # 支払済になった時刻を記録する(表示用。エンティティには持たせない)。
+        if bill.status == BillStatus.PAID and current_status != BillStatus.PAID.value:
+            defaults["paid_at"] = timezone.now()
+        BillModel.objects.update_or_create(id=bill.id, defaults=defaults)
+
+    def find_by_id(self, bill_id: uuid.UUID, *, for_update: bool = False) -> Bill | None:
+        queryset = BillModel.objects.filter(id=bill_id)
+        if for_update:
+            queryset = queryset.select_for_update()
+        model = queryset.first()
+        return bill_from_model(model) if model else None
+
+    def find_open_by_seat(self, seat_id: uuid.UUID, *, for_update: bool = False) -> Bill | None:
+        queryset = BillModel.objects.filter(seat_id=seat_id, status=BillStatus.OPEN.value)
+        if for_update:
+            queryset = queryset.select_for_update()
+        model = queryset.first()
+        return bill_from_model(model) if model else None
+
+
+def bill_from_model(model: BillModel) -> Bill:
+    return Bill(
+        bill_id=model.id,
+        seat_id=model.seat_id,
+        seat_code=model.seat_code,
+        status=BillStatus(model.status),
+    )
+
 
 def order_from_model(model: OrderModel) -> Order:
     """ORM モデル → `Order` エンティティ。参照系(application/queries.py)でも金額計算を
@@ -65,7 +116,9 @@ def order_from_model(model: OrderModel) -> Order:
     """
     return Order(
         order_id=model.id,
+        order_type=OrderType(model.order_type),
         customer_id=model.customer_id,
+        bill_id=model.bill_id,
         lines=[
             OrderLine(
                 menu_item_id=line.menu_item_id,

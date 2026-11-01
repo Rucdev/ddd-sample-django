@@ -106,3 +106,35 @@ class OrderFlowIntegrationTests(TestCase):
 
         with self.assertRaises(InvalidTicketTransition):
             StartCookingUseCase(self.tickets).execute(StartCookingInput(self.latte_ticket.id))
+
+
+class DineInOrderFlowIntegrationTests(TestCase):
+    """席からの注文(店内)も、持ち帰りと同じく明細ごとにチケットが作られ、調理が済むと
+    注文は提供待ち(READY)になる。
+    """
+
+    def test_dine_in_order_is_cooked_then_waits_to_be_served(self) -> None:
+        import uuid
+
+        from ordering.application.dto import PlaceSeatOrderInput
+        from ordering.application.use_cases.manage_bill import OpenBillUseCase
+        from ordering.application.use_cases.place_seat_order import PlaceSeatOrderUseCase
+        from ordering.infrastructure.repositories import DjangoBillRepository
+
+        latte = create_menu_item("カフェラテ", 450)
+        seat_id = uuid.uuid4()
+        OpenBillUseCase(DjangoBillRepository()).execute(seat_id, "T1")
+        order = PlaceSeatOrderUseCase(DjangoOrderRepository(), DjangoBillRepository()).execute(
+            PlaceSeatOrderInput(
+                seat_id=seat_id, lines=(PlaceOrderLineInput(menu_item_id=latte.id, quantity=2),)
+            )
+        )
+        tickets = DjangoTicketRepository()
+        (ticket,) = tickets.find_by_order(order.id)
+
+        StartCookingUseCase(tickets).execute(StartCookingInput(ticket.id))
+        CompleteCookingUseCase(tickets).execute(CompleteCookingInput(ticket.id))
+
+        result = get_order(order.id)
+        assert result is not None
+        self.assertEqual(result.status, "READY")

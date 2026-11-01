@@ -16,6 +16,7 @@
     </div>
     <nav class="bar__nav">
         <span class="bar__refresh">15秒ごとに自動更新</span>
+        <a href="{% url 'ordering:floor' %}">ホール</a>
         <a href="{% url 'ordering:order_list' %}">注文画面</a>
         <a href="{% url 'kitchen:ticket_list' %}">キッチン</a>
         <a href="{% url 'home' %}">トップ</a>
@@ -76,6 +77,8 @@
                     <form method="post" action="{% url 'seating:cancel_reservation' seat.id %}">{% csrf_token %}<button type="submit" class="btn">取消</button></form>
                     <form method="post" action="{% url 'seating:occupy' seat.id %}">{% csrf_token %}<button type="submit" class="btn btn--primary">着席</button></form>
                     {% else %}
+                    {# 席からの注文画面(本来は席に置いた QR コードからお客様が開く)。退席するとこの席の会計は支払済になる。 #}
+                    <a class="btn" href="{% url 'ordering:seat_order' seat.id %}" target="_blank" rel="noopener">注文画面</a>
                     <form method="post" action="{% url 'seating:vacate' seat.id %}">{% csrf_token %}<button type="submit" class="btn btn--primary">退席</button></form>
                     {% endif %}
                 </div>
