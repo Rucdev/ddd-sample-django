@@ -28,12 +28,20 @@ class DjangoSeatRepository:
     def remove(self, seat: Seat) -> None:
         SeatModel.objects.filter(id=seat.id).delete()
 
-    def find_by_id(self, seat_id: uuid.UUID) -> Seat | None:
-        model = SeatModel.objects.select_related("area").filter(id=seat_id).first()
+    def find_by_id(self, seat_id: uuid.UUID, *, for_update: bool = False) -> Seat | None:
+        queryset = SeatModel.objects.select_related("area").filter(id=seat_id)
+        if for_update:
+            # 予約と案内が同時に来ても、両方が「空き」を読んで両方成功しないように。
+            # of=("self",) でエリアの行まではロックしない。
+            queryset = queryset.select_for_update(of=("self",))
+        model = queryset.first()
         return self._to_entity(model) if model else None
 
-    def find_all(self) -> list[Seat]:
-        return [self._to_entity(model) for model in SeatModel.objects.select_related("area")]
+    def find_all(self, *, for_update: bool = False) -> list[Seat]:
+        queryset = SeatModel.objects.select_related("area")
+        if for_update:
+            queryset = queryset.select_for_update(of=("self",))
+        return [self._to_entity(model) for model in queryset]
 
     @staticmethod
     def _to_entity(model: SeatModel) -> Seat:

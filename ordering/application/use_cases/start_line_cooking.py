@@ -18,7 +18,7 @@ class StartLineCookingUseCase:
 
     def execute(self, order_id: uuid.UUID, line_no: int) -> None:
         with transaction.atomic():
-            order = self._order_repository.find_by_id(order_id)
+            order = self._order_repository.find_by_id(order_id, for_update=True)
             if order is None:
                 raise OrderNotFound(order_id)
 

@@ -71,6 +71,15 @@ class OrderLifecycleUseCaseTests(TestCase):
             CancelOrderUseCase(self.repository).execute(CancelOrderInput(self.order.id))
         self.assertEqual(self._status(), OrderStatus.PREPARING)
 
+    def test_every_state_change_reads_the_order_with_a_lock(self) -> None:
+        # キッチンの明細ごとのイベントが同じ注文に同時に届いても上書きし合わないよう、
+        # 状態を変えるユースケースは必ず行ロックを取って読む。
+        StartLineCookingUseCase(self.repository).execute(self.order.id, 1)
+        CompleteLineCookingUseCase(self.repository).execute(self.order.id, 1)
+        PickUpOrderUseCase(self.repository).execute(PickUpOrderInput(self.order.id))
+
+        self.assertEqual(self.repository.locked, [self.order.id] * 3)
+
     def test_unknown_order_raises_not_found(self) -> None:
         with self.assertRaises(OrderNotFound):
             CancelOrderUseCase(self.repository).execute(CancelOrderInput(uuid.uuid4()))

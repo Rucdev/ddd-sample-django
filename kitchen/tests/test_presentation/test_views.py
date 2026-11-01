@@ -70,6 +70,33 @@ class TicketViewTests(_TicketFixtureMixin, TestCase):
         assert ticket is not None
         self.assertEqual(ticket.status, "COOKING")
 
+    def test_ordering_error_during_cooking_becomes_message_not_500(self) -> None:
+        # 注文の明細と食い違うチケット(注文は 1 行なのに 2 行目)。調理開始で ordering 側が
+        # OrderLineNotFound を投げるが、画面は 500 にせずメッセージで返す。
+        stray = Ticket.open(
+            order_id=self.ticket.order_id, line_no=2, item=TicketItem(name="スコーン", quantity=1)
+        )
+        DjangoTicketRepository().save(stray)
+
+        response = self.client.post(reverse("kitchen:start_cooking", args=[stray.id]), follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        page_messages = [str(m) for m in response.context["messages"]]
+        self.assertTrue(any("has no line 2" in m for m in page_messages))
+        stray_after = DjangoTicketRepository().find_by_id(stray.id)
+        assert stray_after is not None
+        self.assertEqual(stray_after.status, "QUEUED")  # 同期イベントなのでキッチン側もロールバック
+
+    def test_done_column_lists_most_recently_completed_first(self) -> None:
+        newer = _open_ticket("カプチーノ")
+        for ticket in (newer, self.ticket):  # 古い注文のほうを後から完了させる
+            self.client.post(reverse("kitchen:start_cooking", args=[ticket.id]))
+            self.client.post(reverse("kitchen:complete_cooking", args=[ticket.id]))
+
+        response = self.client.get(reverse("kitchen:ticket_list"))
+
+        self.assertEqual([t.id for t in response.context["done"]], [self.ticket.id, newer.id])
+
     def test_complete_before_start_shows_error_message(self) -> None:
         response = self.client.post(
             reverse("kitchen:complete_cooking", args=[self.ticket.id]), follow=True

@@ -25,6 +25,9 @@ class TicketModel(models.Model):
     quantity = models.PositiveSmallIntegerField()
     status = models.CharField(max_length=16, choices=Status.choices)
     created_at = models.DateTimeField(auto_now_add=True)
+    # 調理済になった時刻。画面の「調理済」列を完了の新しい順に並べるためだけに持つ
+    # (ドメインのルールには使わないので、エンティティには載せずリポジトリが記録する)。
+    completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "kitchen_ticket"

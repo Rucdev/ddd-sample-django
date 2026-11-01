@@ -13,9 +13,14 @@ class SeatRepository(Protocol):
 
     def remove(self, seat: Seat) -> None: ...
 
-    def find_by_id(self, seat_id: uuid.UUID) -> Seat | None: ...
+    def find_by_id(self, seat_id: uuid.UUID, *, for_update: bool = False) -> Seat | None:
+        """`for_update=True` なら行ロックを取って読む(`select_for_update`)。状態を書き換える
+        ユースケースはロックして読み、同時に来た更新が互いを上書きしないようにする
+        (トランザクションの中で呼ぶこと)。
+        """
+        ...
 
-    def find_all(self) -> list[Seat]: ...
+    def find_all(self, *, for_update: bool = False) -> list[Seat]: ...
 
 
 class AreaRepository(Protocol):

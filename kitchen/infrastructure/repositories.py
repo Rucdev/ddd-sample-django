@@ -1,5 +1,7 @@
 import uuid
 
+from django.utils import timezone
+
 from kitchen.domain.entities import Ticket
 from kitchen.domain.value_objects import TicketItem, TicketStatus
 from kitchen.infrastructure.models import TicketModel
@@ -9,19 +11,23 @@ class DjangoTicketRepository:
     """`TicketRepository` の Django ORM 実装。`Ticket` エンティティ ⇔ `TicketModel` の変換をここに閉じ込める。"""
 
     def save(self, ticket: Ticket) -> None:
-        TicketModel.objects.update_or_create(
-            id=ticket.id,
-            defaults={
-                "order_id": ticket.order_id,
-                "line_no": ticket.line_no,
-                "name": ticket.item.name,
-                "quantity": ticket.item.quantity,
-                "status": ticket.status.value,
-            },
-        )
+        defaults = {
+            "order_id": ticket.order_id,
+            "line_no": ticket.line_no,
+            "name": ticket.item.name,
+            "quantity": ticket.item.quantity,
+            "status": ticket.status.value,
+        }
+        current_status = TicketModel.objects.filter(id=ticket.id).values_list("status", flat=True).first()
+        if ticket.status == TicketStatus.DONE and current_status != TicketStatus.DONE.value:
+            defaults["completed_at"] = timezone.now()
+        TicketModel.objects.update_or_create(id=ticket.id, defaults=defaults)
 
-    def find_by_id(self, ticket_id: uuid.UUID) -> Ticket | None:
-        model = TicketModel.objects.filter(id=ticket_id).first()
+    def find_by_id(self, ticket_id: uuid.UUID, *, for_update: bool = False) -> Ticket | None:
+        queryset = TicketModel.objects.filter(id=ticket_id)
+        if for_update:
+            queryset = queryset.select_for_update()
+        model = queryset.first()
         return self._to_entity(model) if model else None
 
     def find_by_order(self, order_id: uuid.UUID) -> list[Ticket]:

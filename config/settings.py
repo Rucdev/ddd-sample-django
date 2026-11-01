@@ -87,6 +87,9 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        # SQLite は select_for_update を無視する(行ロックがない)。代わりにトランザクションを
+        # IMMEDIATE で始めて書き込みロックを先に取り、読んでから書くユースケースを直列化する。
+        'OPTIONS': {'transaction_mode': 'IMMEDIATE'},
     }
 }
 

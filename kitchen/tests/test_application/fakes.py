@@ -11,7 +11,7 @@ class FakeTicketRepository:
     def save(self, ticket: Ticket) -> None:
         self._tickets[ticket.id] = copy.deepcopy(ticket)
 
-    def find_by_id(self, ticket_id: uuid.UUID) -> Ticket | None:
+    def find_by_id(self, ticket_id: uuid.UUID, *, for_update: bool = False) -> Ticket | None:
         ticket = self._tickets.get(ticket_id)
         return copy.deepcopy(ticket) if ticket else None
 

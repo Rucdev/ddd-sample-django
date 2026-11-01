@@ -36,7 +36,9 @@ def open_ticket_queryset() -> QuerySet[TicketModel]:
 
 
 def recent_done_ticket_queryset(limit: int = 10) -> QuerySet[TicketModel]:
-    """キッチン画面の「調理済」列に出す、直近に調理が終わったチケット。新しい順。"""
+    """キッチン画面の「調理済」列に出す、直近に調理が終わったチケット。調理が終わった新しい順
+    (注文の新しい順ではない。古い注文が後から終わっても列に出るように)。
+    """
     return _with_order_line_count(
-        TicketModel.objects.filter(status=TicketModel.Status.DONE).order_by("-created_at", "line_no")
+        TicketModel.objects.filter(status=TicketModel.Status.DONE).order_by("-completed_at", "-created_at")
     )[:limit]

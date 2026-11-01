@@ -9,6 +9,7 @@ from seating.domain.value_objects import AreaSpec
 class FakeSeatRepository:
     def __init__(self) -> None:
         self.seats: dict[uuid.UUID, Seat] = {}
+        self.lock_count = 0  # for_update=True で読まれた回数(ロックを取ったかの確認用)
 
     def save(self, seat: Seat) -> None:
         self.seats[seat.id] = copy.deepcopy(seat)
@@ -16,11 +17,13 @@ class FakeSeatRepository:
     def remove(self, seat: Seat) -> None:
         del self.seats[seat.id]
 
-    def find_by_id(self, seat_id: uuid.UUID) -> Seat | None:
+    def find_by_id(self, seat_id: uuid.UUID, *, for_update: bool = False) -> Seat | None:
+        self.lock_count += for_update
         seat = self.seats.get(seat_id)
         return copy.deepcopy(seat) if seat else None
 
-    def find_all(self) -> list[Seat]:
+    def find_all(self, *, for_update: bool = False) -> list[Seat]:
+        self.lock_count += for_update
         return [copy.deepcopy(seat) for seat in self.seats.values()]
 
     def by_code(self, code: str) -> Seat:

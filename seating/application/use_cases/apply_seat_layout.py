@@ -20,7 +20,8 @@ class ApplySeatLayoutUseCase:
 
     def execute(self, layout: SeatLayout) -> ApplySeatLayoutResult:
         with transaction.atomic():
-            changes = plan_layout_changes(self._seats.find_all(), layout)
+            # 反映中に席のステータスが変わる(撤去しようとした席が予約される等)のを防ぐため、全席をロックする
+            changes = plan_layout_changes(self._seats.find_all(for_update=True), layout)
 
             # 順番に意味がある: 撤去 → エリアを用意 → 席を保存 → 空いたエリアを消す。
             # 席がエリアを移るときに、移り先のエリアが先にあり、移り元のエリアが後で消えるように。

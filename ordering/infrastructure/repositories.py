@@ -43,8 +43,14 @@ class DjangoOrderRepository:
             for line in order.lines
         )
 
-    def find_by_id(self, order_id: uuid.UUID) -> Order | None:
-        model = OrderModel.objects.prefetch_related("lines").filter(id=order_id).first()
+    def find_by_id(self, order_id: uuid.UUID, *, for_update: bool = False) -> Order | None:
+        queryset = OrderModel.objects.prefetch_related("lines").filter(id=order_id)
+        if for_update:
+            # 明細は保存のたびに作り直すので、注文の行をロックして集約ごと直列化する。
+            # キッチンの明細ごとのイベントが同じ注文に同時に届いても、互いの明細の
+            # 調理状況を上書きしない。
+            queryset = queryset.select_for_update()
+        model = queryset.first()
         return order_from_model(model) if model else None
 
     def count_in_progress_by_customer(self, customer_id: uuid.UUID) -> int:

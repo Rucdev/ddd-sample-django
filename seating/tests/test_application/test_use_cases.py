@@ -26,6 +26,8 @@ class ApplySeatLayoutUseCaseTests(TestCase):
     def test_first_apply_installs_all_seats_as_available(self) -> None:
         result = self.use_case.execute(layout(seat_spec("T1", col=1), seat_spec("T2", col=2)))
 
+        self.assertEqual(self.seats.lock_count, 1)  # 反映中にステータスが変わらないよう全席をロックする
+
         self.assertEqual(result.installed, ("T1", "T2"))
         self.assertEqual({s.status for s in self.seats.seats.values()}, {"AVAILABLE"})
         self.assertEqual(list(self.areas.areas), ["table"])
@@ -90,6 +92,14 @@ class ChangeSeatStatusUseCaseTests(TestCase):
             self._run(VacateSeatUseCase)
 
         self.assertEqual(self.repository.by_code("T1").status, "AVAILABLE")
+
+    def test_status_change_reads_the_seat_with_a_lock(self) -> None:
+        # 予約と案内が同時に来ても、両方が「空き」を読んで両方成功しないように行ロックを取る
+        before = self.repository.lock_count
+
+        self._run(ReserveSeatUseCase)
+
+        self.assertEqual(self.repository.lock_count, before + 1)
 
     def test_unknown_seat(self) -> None:
         with self.assertRaises(SeatNotFound):

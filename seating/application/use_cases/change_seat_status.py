@@ -23,7 +23,7 @@ class _ChangeSeatStatusUseCase:
 
     def execute(self, data: SeatCommandInput) -> SeatDTO:
         with transaction.atomic():
-            seat = self._repository.find_by_id(data.seat_id)
+            seat = self._repository.find_by_id(data.seat_id, for_update=True)
             if seat is None:
                 raise SeatNotFound(data.seat_id)
 
