@@ -1,0 +1,207 @@
+/* 座席画面の見取り図。席の色 = ステータス(空き = 緑、予約中 = 青、使用中 = 橙)。
+   キッチン画面(kitchen.css)と同じトーンに揃えている。 */
+
+:root {
+    --bg: #eef0f3;
+    --panel: #ffffff;
+    --ink: #1f2328;
+    --muted: #6b7280;
+    --line: #d5d9e0;
+    --available: #22a35a;
+    --available-bg: #e9f7ef;
+    --reserved: #3b82f6;
+    --reserved-bg: #e8f0fe;
+    --occupied: #f59e0b;
+    --occupied-bg: #fff4e0;
+    --late: #e5484d;
+    --shadow: 0 1px 0 rgba(15, 23, 42, .08), 0 1px 3px rgba(15, 23, 42, .08);
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+}
+
+/* ---- 上部バー ---- */
+
+.bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    padding: 14px 20px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+}
+.bar__title { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.bar h1 { margin: 0; font-size: 18px; }
+.bar__hint, .bar__refresh { font-size: 12px; color: var(--muted); }
+.bar__nav { display: flex; align-items: center; gap: 16px; font-size: 13px; }
+.bar__nav a { color: var(--muted); text-decoration: none; }
+.bar__nav a:hover { color: var(--ink); }
+
+/* ---- 集計 ---- */
+
+.summary {
+    display: grid;
+    grid-template-columns: minmax(240px, 2fr) repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    padding: 16px 20px 0;
+}
+.summary__rate, .stat {
+    padding: 12px 16px;
+    border-radius: 12px;
+    background: var(--panel);
+    box-shadow: var(--shadow);
+}
+.summary__rate { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 12px; }
+.summary__label { grid-column: 1 / -1; font-size: 12px; font-weight: 700; color: var(--muted); }
+.summary__rate strong { font-size: 28px; line-height: 1; font-variant-numeric: tabular-nums; }
+.summary__rate small, .stat small { font-size: 13px; margin-left: 2px; color: var(--muted); }
+.summary__total { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+
+.meter { display: flex; flex-direction: row-reverse; /* 左から 使用中 → 予約中 → 空き */ height: 10px; border-radius: 999px; overflow: hidden; background: var(--line); }
+.meter__part--available { background: var(--available); }
+.meter__part--reserved { background: var(--reserved); }
+.meter__part--occupied { background: var(--occupied); }
+
+.stat {
+    display: grid;
+    gap: 2px;
+    border: 2px solid transparent;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.stat:hover { border-color: var(--line); }
+.stat[aria-pressed="true"] { border-color: var(--accent); }
+.stat__label { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.stat__seats { font-size: 24px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat__people { font-size: 12px; color: var(--muted); }
+.stat--available { --accent: var(--available); }
+.stat--reserved { --accent: var(--reserved); }
+.stat--occupied { --accent: var(--occupied); }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+
+/* ---- 見取り図 ---- */
+
+.floor {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 16px 20px 32px;
+}
+.area {
+    padding: 14px 16px 16px;
+    border-radius: 14px;
+    background: var(--panel);
+    box-shadow: var(--shadow);
+    max-width: 100%;
+}
+.area__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.area__head h2 { margin: 0; font-size: 15px; }
+.area__count { font-size: 12px; color: var(--muted); }
+.area__grid {
+    display: grid;
+    grid-auto-columns: 132px;
+    grid-auto-rows: auto;
+    gap: 10px;
+    overflow-x: auto;
+}
+
+.seat {
+    --accent: var(--muted);
+    display: grid;
+    gap: 6px;
+    padding: 10px;
+    border-radius: 10px;
+    border: 2px solid var(--accent);
+    background: var(--tint);
+    transition: opacity .15s, filter .15s;
+}
+.seat--available { --accent: var(--available); --tint: var(--available-bg); }
+.seat--reserved { --accent: var(--reserved); --tint: var(--reserved-bg); }
+.seat--occupied { --accent: var(--occupied); --tint: var(--occupied-bg); }
+.seat.is-long { border-color: var(--late); }
+.seat.is-long .seat__since { color: var(--late); }
+
+.seat__head { display: flex; align-items: baseline; justify-content: space-between; }
+.seat__code { font-size: 18px; font-weight: 800; }
+.seat__cap { font-size: 13px; font-weight: 700; color: var(--muted); }
+.seat__cap small { font-size: 11px; }
+.seat__status { margin: 0; display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: var(--accent); }
+.seat__since { color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+.seat__actions { display: flex; gap: 6px; }
+.seat__actions form { flex: 1; margin: 0; }
+
+.btn {
+    width: 100%;
+    padding: 6px 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    color: var(--ink);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); }
+.btn--primary { border-color: var(--accent); background: var(--accent); color: #fff; }
+.btn--primary:hover { filter: brightness(.95); }
+
+/* 集計をクリックしたら、そのステータス以外の席を薄くする */
+body[data-filter="AVAILABLE"] .seat:not([data-status="AVAILABLE"]),
+body[data-filter="RESERVED"] .seat:not([data-status="RESERVED"]),
+body[data-filter="OCCUPIED"] .seat:not([data-status="OCCUPIED"]) { opacity: .25; filter: grayscale(1); }
+
+.empty { padding: 24px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow); }
+.empty h2 { margin-top: 0; font-size: 16px; }
+.empty pre { padding: 10px 14px; border-radius: 8px; background: var(--bg); overflow-x: auto; }
+
+/* ---- 通知 ---- */
+
+.toasts {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 20;
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.toast {
+    padding: 10px 16px;
+    border-radius: 10px;
+    background: var(--ink);
+    color: #fff;
+    border-left: 5px solid var(--muted);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .2);
+    font-size: 14px;
+    font-weight: 700;
+    transition: opacity .4s, transform .4s;
+}
+.toast--success { border-left-color: var(--available); }
+.toast--error { border-left-color: var(--late); }
+.toast.is-gone { opacity: 0; transform: translateY(8px); pointer-events: none; }
+
+@media (max-width: 760px) {
+    .bar { padding: 12px 16px; }
+    .bar__hint, .bar__refresh { display: none; }
+    .summary { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 12px 16px 0; gap: 8px; }
+    .summary__rate { grid-column: 1 / -1; }
+    .stat { padding: 10px 12px; }
+    .floor { padding: 12px 16px 24px; }
+    .area { width: 100%; }
+    .area__grid { grid-auto-columns: 116px; }
+}

@@ -13,8 +13,10 @@ class DjangoTicketRepository:
             id=ticket.id,
             defaults={
                 "order_id": ticket.order_id,
+                "line_no": ticket.line_no,
+                "name": ticket.item.name,
+                "quantity": ticket.item.quantity,
                 "status": ticket.status.value,
-                "items": [{"name": item.name, "quantity": item.quantity} for item in ticket.items],
             },
         )
 
@@ -22,15 +24,18 @@ class DjangoTicketRepository:
         model = TicketModel.objects.filter(id=ticket_id).first()
         return self._to_entity(model) if model else None
 
-    def find_by_order(self, order_id: uuid.UUID) -> Ticket | None:
-        model = TicketModel.objects.filter(order_id=order_id).first()
-        return self._to_entity(model) if model else None
+    def find_by_order(self, order_id: uuid.UUID) -> list[Ticket]:
+        return [
+            self._to_entity(model)
+            for model in TicketModel.objects.filter(order_id=order_id).order_by("line_no")
+        ]
 
     @staticmethod
     def _to_entity(model: TicketModel) -> Ticket:
         return Ticket(
             ticket_id=model.id,
             order_id=model.order_id,
-            items=[TicketItem(name=item["name"], quantity=item["quantity"]) for item in model.items],
+            line_no=model.line_no,
+            item=TicketItem(name=model.name, quantity=model.quantity),
             status=TicketStatus(model.status),
         )

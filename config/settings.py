@@ -43,7 +43,7 @@ INSTALLED_APPS = [
     'kitchen',
     'menu',
     'customers',
-    'inventory',
+    'seating',
 ]
 
 REST_FRAMEWORK = {
@@ -127,5 +127,12 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# admin からアップロードした商品画像の置き場所(開発中は config/urls.py で配信する)
+MEDIA_URL = 'media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 # `manage.py loaddata demo` で読み込むデモデータ(メニュー・会員)の置き場所
 FIXTURE_DIRS = [BASE_DIR / 'fixtures']
+
+# 座席構成ファイル。`manage.py apply_seat_layout` が読んで DB に反映する(seating/CONTEXT.md)。
+SEAT_LAYOUT_FILE = BASE_DIR / 'seating' / 'seat_layout.yaml'

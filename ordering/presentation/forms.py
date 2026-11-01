@@ -31,6 +31,10 @@ class PlaceOrderForm(forms.Form):
     def _field_name(menu_item_id) -> str:
         return f"qty_{menu_item_id}"
 
+    def menu_fields(self) -> list[tuple]:
+        """画面でカードを並べるための (商品, 数量欄) の組。画像・カテゴリは商品の DTO から出す。"""
+        return [(item, self[self._field_name(item.id)]) for item in self._menu_items]
+
     def ordered_lines(self) -> list[tuple]:
         """数量が 1 以上の商品だけを (menu_item_id, quantity) の組で返す。is_valid() の後に呼ぶ。"""
         lines = []

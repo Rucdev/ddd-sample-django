@@ -22,6 +22,7 @@ class OrderLineSerializer(serializers.Serializer):
     unit_price = serializers.IntegerField()
     quantity = serializers.IntegerField()
     subtotal = serializers.IntegerField()
+    cooking_status = serializers.CharField()
 
 
 class OrderSerializer(serializers.Serializer):
@@ -32,3 +33,4 @@ class OrderSerializer(serializers.Serializer):
     subtotal = serializers.IntegerField()
     discount = serializers.IntegerField()
     total = serializers.IntegerField()
+    cooked_line_count = serializers.IntegerField()

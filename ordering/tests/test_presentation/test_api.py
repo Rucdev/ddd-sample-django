@@ -55,6 +55,20 @@ class OrderAPITests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
+    def test_unsupported_method_on_orders_returns_405(self) -> None:
+        response = self.client.delete(reverse("ordering:api_order_list"))
+
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertEqual(response["Allow"], "GET, POST")
+
+    def test_post_orders_is_not_blocked_by_csrf_middleware(self) -> None:
+        # GET/POST を振り分けるラッパーが DRF の csrf_exempt を失っていないことの確認。
+        self.client = APIClient(enforce_csrf_checks=True)
+
+        response = self._post_order()
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
     def test_cancel_order_api(self) -> None:
         order = make_order(self.customer.id)
         DjangoOrderRepository().save(order)

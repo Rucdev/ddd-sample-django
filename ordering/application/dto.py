@@ -37,6 +37,7 @@ class OrderLineDTO:
     unit_price: int
     quantity: int
     subtotal: int
+    cooking_status: str  # WAITING / COOKING / DONE
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,7 @@ class OrderDTO:
     subtotal: int
     discount: int
     total: int
+    cooked_line_count: int  # できあがった明細の数
 
     @classmethod
     def from_entity(cls, order: Order) -> "OrderDTO":
@@ -66,10 +68,12 @@ class OrderDTO:
                     unit_price=line.unit_price.amount,
                     quantity=line.quantity,
                     subtotal=line.subtotal.amount,
+                    cooking_status=line.cooking_status.value,
                 )
                 for line in order.lines
             ),
             subtotal=order.subtotal.amount,
             discount=order.discount.amount,
             total=order.total.amount,
+            cooked_line_count=order.cooked_line_count,
         )

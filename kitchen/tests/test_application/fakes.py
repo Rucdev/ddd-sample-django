@@ -15,8 +15,8 @@ class FakeTicketRepository:
         ticket = self._tickets.get(ticket_id)
         return copy.deepcopy(ticket) if ticket else None
 
-    def find_by_order(self, order_id: uuid.UUID) -> Ticket | None:
-        for ticket in self._tickets.values():
-            if ticket.order_id == order_id:
-                return copy.deepcopy(ticket)
-        return None
+    def find_by_order(self, order_id: uuid.UUID) -> list[Ticket]:
+        return sorted(
+            (copy.deepcopy(t) for t in self._tickets.values() if t.order_id == order_id),
+            key=lambda t: t.line_no,
+        )

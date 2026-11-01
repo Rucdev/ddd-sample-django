@@ -4,6 +4,7 @@ from ordering.domain.entities import Order
 from ordering.domain.value_objects import (
     IN_PROGRESS_STATUSES,
     DiscountRate,
+    LineCookingStatus,
     Money,
     OrderLine,
     OrderStatus,
@@ -37,6 +38,7 @@ class DjangoOrderRepository:
                 name=line.name,
                 unit_price=line.unit_price.amount,
                 quantity=line.quantity,
+                cooking_status=line.cooking_status.value,
             )
             for line in order.lines
         )
@@ -64,6 +66,7 @@ def order_from_model(model: OrderModel) -> Order:
                 name=line.name,
                 unit_price=Money(line.unit_price),
                 quantity=line.quantity,
+                cooking_status=LineCookingStatus(line.cooking_status),
             )
             for line in model.lines.all()
         ],

@@ -6,11 +6,14 @@ from shared.domain.event import DomainEvent
 
 @dataclass(frozen=True)
 class OrderedItem:
-    """`OrderPlaced` に載せる明細。kitchen が調理チケットを作るのに必要な情報だけを運ぶ。
+    """`OrderPlaced` に載せる明細。kitchen が明細ごとに調理チケットを作るのに必要な情報だけを運ぶ。
 
     kitchen に menu モジュールを照会させないよう、商品名はイベント側に含めておく。
+    `line_no` は注文の中での明細の番号(1 始まり)。kitchen はこれをチケットに写し、
+    調理の進み具合を返すときに「どの明細か」を指すのに使う。
     """
 
+    line_no: int
     name: str
     quantity: int
 

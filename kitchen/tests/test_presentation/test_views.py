@@ -16,7 +16,7 @@ def _open_ticket(name: str) -> Ticket:
     # チケットの調理開始は ordering 側の注文を「調理中」にするので、対応する注文も用意する。
     order = make_order(uuid.uuid4())
     DjangoOrderRepository().save(order)
-    ticket = Ticket.open(order_id=order.id, items=[TicketItem(name=name, quantity=2)])
+    ticket = Ticket.open(order_id=order.id, line_no=1, item=TicketItem(name=name, quantity=2))
     DjangoTicketRepository().save(ticket)
     return ticket
 
@@ -31,7 +31,36 @@ class TicketViewTests(_TicketFixtureMixin, TestCase):
         response = self.client.get(reverse("kitchen:ticket_list"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "カフェラテ × 2")
+        self.assertContains(response, '<span class="card__qty">2</span><span class="card__name">カフェラテ</span>', html=True)
+        self.assertEqual(response.context["queued"][0].id, self.ticket.id)
+
+    def test_ticket_list_page_shows_done_tickets_in_their_own_column(self) -> None:
+        self.client.post(reverse("kitchen:start_cooking", args=[self.ticket.id]))
+        self.client.post(reverse("kitchen:complete_cooking", args=[self.ticket.id]))
+
+        response = self.client.get(reverse("kitchen:ticket_list"))
+
+        self.assertEqual([t.id for t in response.context["done"]], [self.ticket.id])
+        self.assertEqual(response.context["queued"], [])
+        self.assertEqual(response.context["item_totals"], [])
+
+    def test_card_shows_position_within_multi_line_order(self) -> None:
+        second = Ticket.open(
+            order_id=self.ticket.order_id, line_no=2, item=TicketItem(name="スコーン", quantity=1)
+        )
+        DjangoTicketRepository().save(second)
+
+        response = self.client.get(reverse("kitchen:ticket_list"))
+
+        self.assertContains(response, '>1/2</span>')
+        self.assertContains(response, '>2/2</span>')
+
+    def test_ticket_list_page_sums_items_across_tickets(self) -> None:
+        _open_ticket("カフェラテ")
+
+        response = self.client.get(reverse("kitchen:ticket_list"))
+
+        self.assertEqual(response.context["item_totals"], [("カフェラテ", 4)])
 
     def test_start_cooking_view(self) -> None:
         response = self.client.post(reverse("kitchen:start_cooking", args=[self.ticket.id]))
@@ -59,7 +88,8 @@ class TicketAPITests(_TicketFixtureMixin, TestCase):
         response = self.client.get(reverse("kitchen:api_ticket_list"))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json()[0]["items"], [{"name": "カフェラテ", "quantity": 2}])
+        ticket = response.json()[0]
+        self.assertEqual((ticket["line_no"], ticket["name"], ticket["quantity"]), (1, "カフェラテ", 2))
 
     def test_filter_tickets_by_status(self) -> None:
         cooking = _open_ticket("カプチーノ")

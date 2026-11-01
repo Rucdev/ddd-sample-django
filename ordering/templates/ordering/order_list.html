@@ -1,74 +1,281 @@
-<!DOCTYPE html>
+{% load static %}<!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>注文一覧</title>
+    <link rel="stylesheet" href="{% static 'ordering/order.css' %}">
 </head>
 <body>
-<h1>注文一覧</h1>
-<p><a href="{% url 'home' %}">トップへ</a> / <a href="{% url 'kitchen:ticket_list' %}">キッチン画面へ</a></p>
+<header class="topbar">
+    <a class="brand" href="{% url 'home' %}">☕ Cafe Mobile Order</a>
+    <nav>
+        <a href="{% url 'home' %}">トップ</a>
+        <a href="{% url 'kitchen:ticket_list' %}">キッチン画面</a>
+        <button type="button" class="member-chip" id="member-chip" data-open-member-dialog>
+            <span class="member-chip__avatar" id="member-avatar">?</span>
+            <span class="member-chip__text">
+                <span class="member-chip__name" id="member-name">会員を選ぶ</span>
+                <span class="member-chip__meta" id="member-meta"></span>
+            </span>
+        </button>
+    </nav>
+</header>
 
-{% if messages %}
-<ul>
-    {% for message in messages %}
-    <li>{{ message }}</li>
-    {% endfor %}
-</ul>
-{% endif %}
-
-<h2>注文する</h2>
-<form method="post" action="{% url 'ordering:place_order' %}">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit">注文する</button>
-</form>
-
-<h2>注文一覧</h2>
-<table border="1" cellpadding="4">
-    <thead>
-    <tr>
-        <th>注文ID</th>
-        <th>会員ID</th>
-        <th>明細</th>
-        <th>小計</th>
-        <th>割引</th>
-        <th>合計</th>
-        <th>ステータス</th>
-        <th></th>
-    </tr>
-    </thead>
-    <tbody>
-    {% for row in rows %}
-    {% with order=row.order %}
-    <tr>
-        <td>{{ order.id }}</td>
-        <td>{{ order.customer_id }}</td>
-        <td>
-            {% for line in order.lines %}
-            {{ line.name }} × {{ line.quantity }}{% if not forloop.last %}<br>{% endif %}
+{# 擬似ログイン: 選んだ会員の ID はブラウザ(localStorage)にだけ覚えておく。 #}
+{# サーバ側にセッションは持たず、注文時に hidden の customer_id として送るだけ。 #}
+<dialog class="member-dialog" id="member-dialog">
+    <form method="dialog" class="member-dialog__inner">
+        <h2>会員を選んでください</h2>
+        <p class="member-dialog__lead">デモ用の擬似ログインです。選んだ会員はこのブラウザに記憶されます。</p>
+        <ul class="member-list">
+            {% for member in members %}
+            <li>
+                <button type="submit" value="{{ member.id }}" class="member-option{% if not member.is_active %} is-suspended{% endif %}">
+                    <span class="member-chip__avatar rank--{{ member.rank|lower }}">{{ member.name|first }}</span>
+                    <span class="member-option__text">
+                        <strong>{{ member.name }}</strong>
+                        <small>{{ member.rank_label }}{% if member.discount_percent %} · {{ member.discount_percent }}%オフ{% endif %} · {{ member.points }}pt{% if not member.is_active %} · 利用停止中{% endif %}</small>
+                    </span>
+                </button>
+            </li>
+            {% empty %}
+            <li class="empty">会員が登録されていません。</li>
             {% endfor %}
-        </td>
-        <td>{{ order.subtotal }}円</td>
-        <td>{{ order.discount }}円</td>
-        <td>{{ order.total }}円</td>
-        <td>{{ row.status_label }}</td>
-        <td>
-            {% if order.status == "PLACED" %}
-            <form method="post" action="{% url 'ordering:cancel_order' order.id %}" style="display:inline">
-                {% csrf_token %}
-                <button type="submit">キャンセル</button>
-            </form>
-            {% elif order.status == "READY" %}
-            <form method="post" action="{% url 'ordering:pick_up_order' order.id %}" style="display:inline">
-                {% csrf_token %}
-                <button type="submit">受取</button>
-            </form>
-            {% endif %}
-        </td>
-    </tr>
-    {% endwith %}
-    {% endfor %}
-    </tbody>
-</table>
+        </ul>
+        <div class="member-dialog__actions">
+            <button type="button" class="btn btn--ghost" id="member-logout">ログアウト</button>
+            <button type="submit" value="" class="btn btn--ghost">閉じる</button>
+        </div>
+    </form>
+</dialog>
+{{ members|json_script:"members-data" }}
+
+<main class="container">
+    {% if messages %}
+    <ul class="messages">
+        {% for message in messages %}
+        <li class="message message--{{ message.tags|default:'info' }}">{{ message }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    <form method="post" action="{% url 'ordering:place_order' %}" class="order-form" id="order-form">
+        {% csrf_token %}
+        <section>
+            <h1 class="section-title">メニュー</h1>
+            {% regroup form.menu_fields by 0.category_name as categories %}
+            {% for category in categories %}
+            <h2 class="category-title">{{ category.grouper }}</h2>
+            <div class="menu-grid">
+                {% for item, field in category.list %}
+                <article class="menu-card" data-price="{{ item.price }}">
+                    <div class="menu-card__image">
+                        {% if item.image_url %}
+                        <img src="{{ item.image_url }}" alt="{{ item.name }}" loading="lazy">
+                        {% else %}
+                        <span class="menu-card__placeholder" aria-hidden="true">{{ item.name|first }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="menu-card__body">
+                        <label class="menu-card__name" for="{{ field.id_for_label }}">{{ item.name }}</label>
+                        <p class="menu-card__price">¥{{ item.price }}</p>
+                        <div class="stepper">
+                            <button type="button" class="stepper__btn" data-step="-1" aria-label="{{ item.name }}を1つ減らす">−</button>
+                            {{ field }}
+                            <button type="button" class="stepper__btn" data-step="1" aria-label="{{ item.name }}を1つ増やす">＋</button>
+                        </div>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+            {% empty %}
+            <p class="empty">現在ご注文いただける商品はありません。</p>
+            {% endfor %}
+        </section>
+
+        <aside class="checkout">
+            {{ form.customer_id.as_hidden }}
+            <div class="checkout__member">
+                <span class="checkout__label">ご注文者</span>
+                <button type="button" class="checkout__member-name" id="checkout-member" data-open-member-dialog>会員を選ぶ</button>
+            </div>
+            <dl class="checkout__summary">
+                <div><dt><span id="cart-count">0</span> 点</dt><dd>¥<span id="cart-subtotal">0</span></dd></div>
+                <div class="discount" id="cart-discount-row" hidden><dt>会員割引 <span id="cart-discount-percent"></span>%</dt><dd>−¥<span id="cart-discount">0</span></dd></div>
+                <div class="total"><dt>合計(目安)</dt><dd>¥<span id="cart-total">0</span></dd></div>
+            </dl>
+            <button type="submit" class="btn btn--primary">注文する</button>
+            <p class="checkout__note">金額は目安です。確定額は注文後の一覧でご確認ください。</p>
+        </aside>
+    </form>
+
+    <section>
+        <div class="section-head">
+            <h1 class="section-title">注文一覧</h1>
+            <div class="tabs" role="tablist" id="order-tabs">
+                <button type="button" class="tab" data-filter="mine" role="tab">自分の注文</button>
+                <button type="button" class="tab" data-filter="all" role="tab">すべての注文</button>
+            </div>
+        </div>
+        <div class="orders" id="orders">
+            {% for row in rows %}
+            {% with order=row.order %}
+            <article class="order-card" data-customer="{{ order.customer_id }}">
+                <header class="order-card__head">
+                    <span class="badge badge--{{ order.status|lower }}">{{ row.status_label }}</span>
+                    {% if order.status == "PREPARING" %}<span class="order-card__progress">{{ order.cooked_line_count }}/{{ order.lines|length }} 品できあがり</span>{% endif %}
+                    <code class="order-card__id" title="{{ order.id }}">#{{ order.id|stringformat:"s"|slice:":4"|upper }}</code>
+                </header>
+                <ul class="order-card__lines">
+                    {% for line in order.lines %}
+                    {# 調理中の注文だけ、明細ごとの進み具合を出す(キッチンは商品ごとに作るので) #}
+                    <li><span>{{ line.name }}{% if order.status == "PREPARING" %}{% if line.cooking_status == "DONE" %}<span class="line-state line-state--done">できた</span>{% elif line.cooking_status == "COOKING" %}<span class="line-state line-state--cooking">調理中</span>{% endif %}{% endif %}</span><span>× {{ line.quantity }}</span></li>
+                    {% endfor %}
+                </ul>
+                <dl class="order-card__amounts">
+                    <div><dt>小計</dt><dd>¥{{ order.subtotal }}</dd></div>
+                    {% if order.discount %}<div class="discount"><dt>割引</dt><dd>−¥{{ order.discount }}</dd></div>{% endif %}
+                    <div class="total"><dt>合計</dt><dd>¥{{ order.total }}</dd></div>
+                </dl>
+                <footer class="order-card__foot">
+                    <span class="order-card__customer" title="{{ order.customer_id }}">{{ row.customer_name }}</span>
+                    {% if order.status == "PLACED" %}
+                    <form method="post" action="{% url 'ordering:cancel_order' order.id %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn--ghost">キャンセル</button>
+                    </form>
+                    {% elif order.status == "READY" %}
+                    <form method="post" action="{% url 'ordering:pick_up_order' order.id %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn--primary">受取</button>
+                    </form>
+                    {% endif %}
+                </footer>
+            </article>
+            {% endwith %}
+            {% endfor %}
+            <p class="empty" id="orders-empty" hidden>まだ注文はありません。</p>
+        </div>
+    </section>
+</main>
+
+<script>
+// 画面側の振る舞い。サーバはステートレスのままで、以下はすべてブラウザ内で完結する。
+// - 擬似ログイン: 選んだ会員の ID を localStorage に覚え、注文フォームの hidden 欄に入れる
+// - 数量の +/- と合計金額の目安(確定値はサーバ側のドメインが計算する)
+// - 注文一覧の「自分の注文 / すべて」の切り替え
+(function () {
+    const MEMBER_KEY = "cafe.memberId";
+    const FILTER_KEY = "cafe.orderFilter";
+    const members = JSON.parse(document.getElementById("members-data").textContent);
+    const form = document.getElementById("order-form");
+    const dialog = document.getElementById("member-dialog");
+    const cards = form.querySelectorAll(".menu-card");
+    const $ = function (id) { return document.getElementById(id); };
+
+    // private ウィンドウなどで localStorage が使えなくても画面は動くようにする
+    const storage = {
+        get: function (key) { try { return localStorage.getItem(key); } catch (e) { return null; } },
+        set: function (key, value) { try { localStorage.setItem(key, value); } catch (e) {} },
+        remove: function (key) { try { localStorage.removeItem(key); } catch (e) {} },
+    };
+
+    function currentMember() {
+        const id = storage.get(MEMBER_KEY);
+        return members.find(function (m) { return m.id === id; }) || null;
+    }
+
+    function renderMember() {
+        const member = currentMember();
+        form.elements.customer_id.value = member ? member.id : "";
+        $("member-avatar").textContent = member ? member.name.charAt(0) : "?";
+        $("member-avatar").className = "member-chip__avatar" + (member ? " rank--" + member.rank.toLowerCase() : "");
+        $("member-name").textContent = member ? member.name + " さん" : "会員を選ぶ";
+        $("member-meta").textContent = member ? member.rank_label + " · " + member.points + "pt" : "";
+        $("checkout-member").textContent = member ? member.name + " さん(" + member.rank_label + ")" : "会員を選ぶ";
+        refreshCart();
+        refreshOrders();
+    }
+
+    function refreshCart() {
+        const member = currentMember();
+        const percent = member ? member.discount_percent : 0;
+        let count = 0, subtotal = 0;
+        cards.forEach(function (card) {
+            const qty = parseInt(card.querySelector("input").value, 10) || 0;
+            card.classList.toggle("is-selected", qty > 0);
+            count += qty;
+            subtotal += qty * Number(card.dataset.price);
+        });
+        const discount = Math.floor(subtotal * percent / 100);  // ドメインと同じく切り捨て
+        $("cart-count").textContent = count;
+        $("cart-subtotal").textContent = subtotal.toLocaleString("ja-JP");
+        $("cart-discount-row").hidden = percent === 0;
+        $("cart-discount-percent").textContent = percent;
+        $("cart-discount").textContent = discount.toLocaleString("ja-JP");
+        $("cart-total").textContent = (subtotal - discount).toLocaleString("ja-JP");
+    }
+
+    function refreshOrders() {
+        const member = currentMember();
+        let filter = storage.get(FILTER_KEY) || "mine";
+        if (!member) filter = "all";  // 未ログインなら「自分の注文」は出せない
+        document.querySelectorAll("#order-tabs .tab").forEach(function (tab) {
+            tab.classList.toggle("is-active", tab.dataset.filter === filter);
+            tab.disabled = tab.dataset.filter === "mine" && !member;
+        });
+        let visible = 0;
+        document.querySelectorAll("#orders .order-card").forEach(function (card) {
+            const mine = member && card.dataset.customer === member.id;
+            card.classList.toggle("is-mine", Boolean(mine));
+            card.hidden = filter === "mine" && !mine;
+            if (!card.hidden) visible += 1;
+        });
+        $("orders-empty").hidden = visible > 0;
+    }
+
+    document.querySelectorAll("[data-open-member-dialog]").forEach(function (button) {
+        button.addEventListener("click", function () { dialog.showModal(); });
+    });
+    dialog.addEventListener("close", function () {
+        if (dialog.returnValue) {
+            storage.set(MEMBER_KEY, dialog.returnValue);
+            renderMember();
+        }
+    });
+    $("member-logout").addEventListener("click", function () {
+        storage.remove(MEMBER_KEY);
+        dialog.close("");
+        renderMember();
+    });
+    $("order-tabs").addEventListener("click", function (event) {
+        const tab = event.target.closest(".tab");
+        if (!tab || tab.disabled) return;
+        storage.set(FILTER_KEY, tab.dataset.filter);
+        refreshOrders();
+    });
+
+    form.addEventListener("click", function (event) {
+        const button = event.target.closest(".stepper__btn");
+        if (!button) return;
+        const input = button.parentElement.querySelector("input");
+        const max = Number(input.max) || Infinity;
+        const next = (parseInt(input.value, 10) || 0) + Number(button.dataset.step);
+        input.value = Math.min(Math.max(next, 0), max);
+        refreshCart();
+    });
+    form.addEventListener("input", refreshCart);
+    form.addEventListener("submit", function (event) {
+        if (!currentMember()) {  // 未選択のまま送ると形式エラーになるので、先に選んでもらう
+            event.preventDefault();
+            dialog.showModal();
+        }
+    });
+
+    renderMember();
+    if (!currentMember() && members.length) dialog.showModal();
+})();
+</script>
 </body>
 </html>

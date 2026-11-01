@@ -1,0 +1,27 @@
+{# カンバンのカード(チケット 1 枚 = 注文明細 1 行)。同じ注文の他の明細は別のカードとして独立に進む。 #}
+{# action が "start" / "complete" ならその遷移のフォームを持ち、 #}
+{# next_status の列へドラッグできる。action なし(調理済)は表示だけ。 #}
+<article class="card" data-created="{{ ticket.created_at.isoformat }}"{% if next_status %} data-next="{{ next_status }}"{% endif %}>
+    <header class="card__head">
+        <span class="card__no" title="注文ID {{ ticket.order_id }}">#{{ ticket.order_id|stringformat:"s"|slice:":4"|upper }}{% if ticket.order_line_count > 1 %}<span class="card__line" title="この注文の {{ ticket.order_line_count }} 品のうち {{ ticket.line_no }} 品目">{{ ticket.line_no }}/{{ ticket.order_line_count }}</span>{% endif %}</span>
+        {% if action %}
+        <span class="card__timer">{{ ticket.created_at|timesince }}</span>
+        {% else %}
+        <span class="card__time"></span>
+        {% endif %}
+    </header>
+    <ul class="card__items">
+        <li><span class="card__qty">{{ ticket.quantity }}</span><span class="card__name">{{ ticket.name }}</span></li>
+    </ul>
+    {% if action == "start" %}
+    <form method="post" action="{% url 'kitchen:start_cooking' ticket.id %}" class="card__foot">
+        {% csrf_token %}
+        <button type="submit" class="card__action">調理開始 →</button>
+    </form>
+    {% elif action == "complete" %}
+    <form method="post" action="{% url 'kitchen:complete_cooking' ticket.id %}" class="card__foot">
+        {% csrf_token %}
+        <button type="submit" class="card__action">調理完了 →</button>
+    </form>
+    {% endif %}
+</article>

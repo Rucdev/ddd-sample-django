@@ -1,0 +1,141 @@
+{% load static %}<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>座席</title>
+    <link rel="stylesheet" href="{% static 'seating/seating.css' %}">
+</head>
+<body>
+{# 座席の見取り図。エリアごとに、座席構成ファイルの row / col どおりに席を並べる。 #}
+{# 席の色がステータス(空き / 予約中 / 使用中)。席のボタンはその状態から進める遷移だけを出す。 #}
+<header class="bar">
+    <div class="bar__title">
+        <h1>座席</h1>
+        <span class="bar__hint">席のボタンで予約・案内・退席を記録します</span>
+    </div>
+    <nav class="bar__nav">
+        <span class="bar__refresh">15秒ごとに自動更新</span>
+        <a href="{% url 'ordering:order_list' %}">注文画面</a>
+        <a href="{% url 'kitchen:ticket_list' %}">キッチン</a>
+        <a href="{% url 'home' %}">トップ</a>
+    </nav>
+</header>
+
+<section class="summary" aria-label="座席の使用状況">
+    <div class="summary__rate">
+        <span class="summary__label">使用率</span>
+        <strong>{{ occupancy_rate }}<small>%</small></strong>
+        <span class="meter" role="img" aria-label="使用率 {{ occupancy_rate }}%">
+            {% for s in summary %}<span class="meter__part meter__part--{{ s.status|lower }}" style="flex-grow: {{ s.seats }}"></span>{% endfor %}
+        </span>
+        <span class="summary__total">全 {{ total_seats }} 席 / {{ total_capacity }} 人分</span>
+    </div>
+    {% for s in summary %}
+    <button type="button" class="stat stat--{{ s.status|lower }}" data-filter="{{ s.status }}" aria-pressed="false">
+        <span class="stat__label"><span class="dot"></span>{{ s.label }}</span>
+        <strong class="stat__seats">{{ s.seats }}<small>席</small></strong>
+        <span class="stat__people">{{ s.capacity }} 人分</span>
+    </button>
+    {% endfor %}
+</section>
+
+{% if messages %}
+<ul class="toasts">
+    {% for message in messages %}
+    <li class="toast toast--{{ message.tags|default:'info' }}">{{ message }}</li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+<main class="floor">
+    {% for area in areas %}
+    <section class="area">
+        <header class="area__head">
+            <h2>{{ area.name }}</h2>
+            <span class="area__count">{{ area.seats.all|length }} 席</span>
+        </header>
+        <div class="area__grid">
+            {% for seat in area.seats.all %}
+            <article class="seat seat--{{ seat.status|lower }}" data-status="{{ seat.status }}"
+                     data-changed="{{ seat.status_changed_at.isoformat }}"
+                     style="grid-row: {{ seat.row }}; grid-column: {{ seat.col }}">
+                <header class="seat__head">
+                    <span class="seat__code">{{ seat.code }}</span>
+                    <span class="seat__cap" title="定員 {{ seat.capacity }} 人">{{ seat.capacity }}<small>名</small></span>
+                </header>
+                <p class="seat__status">
+                    {{ seat.get_status_display }}
+                    {% if seat.status != "AVAILABLE" %}<span class="seat__since" title="{{ seat.status_changed_at }} から"></span>{% endif %}
+                </p>
+                <div class="seat__actions">
+                    {% if seat.status == "AVAILABLE" %}
+                    <form method="post" action="{% url 'seating:reserve' seat.id %}">{% csrf_token %}<button type="submit" class="btn">予約</button></form>
+                    <form method="post" action="{% url 'seating:occupy' seat.id %}">{% csrf_token %}<button type="submit" class="btn btn--primary">案内</button></form>
+                    {% elif seat.status == "RESERVED" %}
+                    <form method="post" action="{% url 'seating:cancel_reservation' seat.id %}">{% csrf_token %}<button type="submit" class="btn">取消</button></form>
+                    <form method="post" action="{% url 'seating:occupy' seat.id %}">{% csrf_token %}<button type="submit" class="btn btn--primary">着席</button></form>
+                    {% else %}
+                    <form method="post" action="{% url 'seating:vacate' seat.id %}">{% csrf_token %}<button type="submit" class="btn btn--primary">退席</button></form>
+                    {% endif %}
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+    {% empty %}
+    <section class="empty">
+        <h2>座席がまだありません</h2>
+        <p>座席構成ファイル(<code>seating/seat_layout.yaml</code>)を DB に反映してください。</p>
+        <pre><code>uv run python manage.py apply_seat_layout</code></pre>
+    </section>
+    {% endfor %}
+</main>
+
+<script>
+// 画面の振る舞い。状態はサーバ側が持ち、ここでは表示の補助だけを行う。
+// - 予約中・使用中の席に「何分前から」を出す(長く使われている席が分かるように)
+// - 上の集計をクリックすると、そのステータスの席だけを目立たせる
+// - 15 秒ごとの自動再読み込み(操作中は止める)
+(function () {
+    const STORAGE_KEY = "seating.filter";
+    let busy = false;
+
+    function tick() {
+        const now = new Date();
+        document.querySelectorAll(".seat[data-changed]").forEach(function (seat) {
+            const since = seat.querySelector(".seat__since");
+            if (!since) return;
+            const minutes = Math.max(0, Math.floor((now - new Date(seat.dataset.changed)) / 60000));
+            since.textContent = minutes < 60 ? minutes + "分" : Math.floor(minutes / 60) + "時間" + (minutes % 60) + "分";
+            // 使用中が 90 分を超えたら目立たせる(席の回転を見るため)
+            seat.classList.toggle("is-long", seat.dataset.status === "OCCUPIED" && minutes >= 90);
+        });
+    }
+    tick();
+    setInterval(tick, 30000);
+
+    function applyFilter(status) {
+        document.body.dataset.filter = status || "";
+        document.querySelectorAll(".stat[data-filter]").forEach(function (button) {
+            button.setAttribute("aria-pressed", String(button.dataset.filter === status));
+        });
+        try { status ? sessionStorage.setItem(STORAGE_KEY, status) : sessionStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    }
+    document.querySelectorAll(".stat[data-filter]").forEach(function (button) {
+        button.addEventListener("click", function () {
+            applyFilter(document.body.dataset.filter === button.dataset.filter ? "" : button.dataset.filter);
+        });
+    });
+    try { applyFilter(sessionStorage.getItem(STORAGE_KEY) || ""); } catch (e) {}
+
+    document.addEventListener("submit", function () { busy = true; });
+    setInterval(function () { if (!busy) location.reload(); }, 15000);
+
+    setTimeout(function () {
+        document.querySelectorAll(".toast").forEach(function (toast) { toast.classList.add("is-gone"); });
+    }, 3000);
+})();
+</script>
+</body>
+</html>

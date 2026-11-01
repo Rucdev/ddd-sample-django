@@ -4,14 +4,11 @@ from django.db import models
 
 
 class TicketModel(models.Model):
-    """`Ticket` エンティティの永続化用モデル。
+    """`Ticket` エンティティの永続化用モデル。注文明細 1 行につき 1 行。
 
     `order_id` は ordering モジュールの ID を値として持つだけで、ForeignKey は張らない。
-    一意制約は「注文 1 件につきチケット 1 枚」というドメインの前提を DB レベルでも保証するため。
-
-    明細(TicketItem のリスト)は別テーブルにせず JSONField に入れている。明細で検索・集計
-    することがなく、チケットと一緒に読み書きするだけの値オブジェクトの列なので、これで十分
-    (ordering の OrderLineModel は別テーブルにしている。比較用に方式を変えてある)。
+    (order_id, line_no) の一意制約は「明細 1 行につきチケット 1 枚」というドメインの前提を
+    DB レベルでも保証するため。
     """
 
     class Status(models.TextChoices):
@@ -22,13 +19,18 @@ class TicketModel(models.Model):
         CANCELLED = "CANCELLED", "取消"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    order_id = models.UUIDField(unique=True)
+    order_id = models.UUIDField(db_index=True)
+    line_no = models.PositiveSmallIntegerField()  # 注文の中での明細の番号(1 始まり)
+    name = models.CharField(max_length=128)
+    quantity = models.PositiveSmallIntegerField()
     status = models.CharField(max_length=16, choices=Status.choices)
-    items = models.JSONField()  # [{"name": "カフェラテ", "quantity": 2}, ...]
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "kitchen_ticket"
+        constraints = [
+            models.UniqueConstraint(fields=["order_id", "line_no"], name="kitchen_ticket_one_per_line"),
+        ]
 
     def __str__(self) -> str:
         return str(self.id)

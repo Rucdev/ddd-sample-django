@@ -48,6 +48,13 @@ class PublicApiTests(TestCase):
     def test_get_customer_returns_none_when_not_found(self) -> None:
         self.assertIsNone(public.get_customer(uuid.uuid4()))
 
+    def test_list_customers_returns_dtos(self) -> None:
+        Customer.objects.create(name="Bob", email="bob@example.com")
+
+        names = [dto.name for dto in public.list_customers()]
+
+        self.assertEqual(names, ["Alice", "Bob"])
+
     def test_add_points(self) -> None:
         public.add_points(self.customer.id, 5)
         public.add_points(self.customer.id, 3)

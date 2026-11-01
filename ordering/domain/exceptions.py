@@ -19,6 +19,13 @@ class OrderNotFound(OrderingError, NotFoundError):
         super().__init__(f"Order {order_id} was not found")
 
 
+class OrderLineNotFound(OrderingError, NotFoundError):
+    def __init__(self, order_id: uuid.UUID, line_no: int) -> None:
+        self.order_id = order_id
+        self.line_no = line_no
+        super().__init__(f"Order {order_id} has no line {line_no}")
+
+
 class CustomerNotEligible(OrderingError, ConflictError):
     def __init__(self, customer_id: uuid.UUID) -> None:
         self.customer_id = customer_id
@@ -29,17 +36,6 @@ class MenuItemNotAvailable(OrderingError, ConflictError):
     def __init__(self, menu_item_id: uuid.UUID) -> None:
         self.menu_item_id = menu_item_id
         super().__init__(f"Menu item {menu_item_id} is not available")
-
-
-class OutOfStock(OrderingError, ConflictError):
-    """商品を作るキットの在庫(注文可能数)が足りない。判定は inventory モジュールが行う。"""
-
-    def __init__(self, menu_item_id: uuid.UUID, name: str, requested: int, available: int) -> None:
-        self.menu_item_id = menu_item_id
-        self.name = name
-        self.requested = requested
-        self.available = available
-        super().__init__(f"Only {available} of {name} in stock, {requested} requested")
 
 
 class EmptyOrder(OrderingError, ConflictError):

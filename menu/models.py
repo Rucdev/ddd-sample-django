@@ -1,5 +1,6 @@
 import uuid
 
+from django.core.validators import FileExtensionValidator
 from django.db import models
 
 
@@ -26,10 +27,13 @@ class MenuItem(models.Model):
     name = models.CharField(max_length=128, unique=True)
     price = models.PositiveIntegerField(help_text="税込価格(円)")
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.ON_SALE)
-    # 在庫切れは inventory モジュールだけが書き換える(menu.public.set_out_of_stock)。
-    # スタッフが手で付ける「品切れ」(status)とは別に持ち、互いに上書きしないようにする。
-    out_of_stock = models.BooleanField(
-        default=False, help_text="キットの注文可能数が 0 のとき在庫管理が自動で立てる"
+    # 注文画面のカードに出す商品画像。SVG も置けるよう ImageField(Pillow 依存)ではなく
+    # 拡張子だけを検査する FileField にしている。未設定なら画面側で代わりの絵を出す。
+    image = models.FileField(
+        upload_to="menu_items/",
+        blank=True,
+        validators=[FileExtensionValidator(["png", "jpg", "jpeg", "webp", "svg"])],
+        help_text="注文画面に表示する商品画像(png / jpg / webp / svg)",
     )
 
     class Meta:

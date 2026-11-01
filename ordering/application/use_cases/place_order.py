@@ -1,11 +1,10 @@
 from django.db import transaction
 
 from customers.public import get_customer
-from inventory.public import InsufficientStock, allocate_for_order
 from menu.public import get_menu_item
 from ordering.application.dto import OrderDTO, PlaceOrderInput
 from ordering.domain.entities import Order
-from ordering.domain.exceptions import CustomerNotEligible, MenuItemNotAvailable, OutOfStock
+from ordering.domain.exceptions import CustomerNotEligible, MenuItemNotAvailable
 from ordering.domain.repositories import OrderRepository
 from ordering.domain.services import OrderPolicy
 from ordering.domain.value_objects import Money, OrderLine, discount_rate_for_rank
@@ -55,15 +54,6 @@ class PlaceOrderUseCase:
                 lines=lines,
                 discount_rate=discount_rate_for_rank(customer.rank),
             )
-            # キットの在庫を消費する。足りなければ inventory の例外を ordering の例外に
-            # 詰め替えて投げ、トランザクションごと注文を取り消す。キャンセル時の戻しは
-            # inventory が OrderCancelled を購読して行う。
-            try:
-                allocate_for_order(
-                    order.id, [(line.menu_item_id, line.quantity) for line in order.lines]
-                )
-            except InsufficientStock as exc:
-                raise OutOfStock(exc.menu_item_id, exc.name, exc.requested, exc.available) from exc
             self._order_repository.save(order)
             # 集約が保持していたイベントを取り出して発行する。同一トランザクション内で
             # 同期的にハンドラが呼ばれるため、ハンドラ(kitchen のチケット作成)が失敗すれば
