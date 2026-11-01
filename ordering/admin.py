@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from ordering.infrastructure.models import OrderLineModel, OrderModel
+from ordering.infrastructure.models import BillModel, OrderLineModel, OrderModel
 
 
 class _ReadOnlyAdminMixin:
@@ -26,6 +26,12 @@ class OrderLineInline(_ReadOnlyAdminMixin, admin.TabularInline):
 
 @admin.register(OrderModel)
 class OrderModelAdmin(_ReadOnlyAdminMixin, admin.ModelAdmin):
-    list_display = ("id", "customer_id", "status", "discount_percent", "created_at")
-    list_filter = ("status",)
+    list_display = ("id", "order_type", "customer_id", "bill", "status", "discount_percent", "created_at")
+    list_filter = ("order_type", "status")
     inlines = [OrderLineInline]
+
+
+@admin.register(BillModel)
+class BillModelAdmin(_ReadOnlyAdminMixin, admin.ModelAdmin):
+    list_display = ("seat_code", "status", "opened_at", "paid_at")
+    list_filter = ("status",)

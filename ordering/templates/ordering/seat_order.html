@@ -1,0 +1,155 @@
+{% load static %}<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% if bill %}{{ bill.seat_code }} のご注文{% else %}ご注文{% endif %}</title>
+    <link rel="stylesheet" href="{% static 'ordering/order.css' %}">
+</head>
+<body>
+{# 席からの注文画面(お客様が席の QR コードから開く想定)。会員登録・ログインは要らない。 #}
+{# 注文はこの席の会計にまとまり、お支払いはお帰りの際にまとめて行う。 #}
+<header class="topbar">
+    <span class="brand">☕ Cafe Mobile Order</span>
+    {% if bill %}<span class="seat-chip">お席 <strong>{{ bill.seat_code }}</strong></span>{% endif %}
+</header>
+
+<main class="container">
+    {% if messages %}
+    <ul class="messages">
+        {% for message in messages %}
+        <li class="message message--{{ message.tags|default:'info' }}">{{ message }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if not bill %}
+    <section class="seat-closed">
+        <h1 class="section-title">このお席は現在ご注文を受け付けていません</h1>
+        <p>ご案内の前、またはお会計が済んだお席です。スタッフにお声がけください。</p>
+    </section>
+    {% else %}
+    <form method="post" action="{% url 'ordering:place_seat_order' seat_id %}" class="order-form" id="order-form">
+        {% csrf_token %}
+        <section>
+            <h1 class="section-title">メニュー</h1>
+            {% regroup form.menu_fields by 0.category_name as categories %}
+            {% for category in categories %}
+            <h2 class="category-title">{{ category.grouper }}</h2>
+            <div class="menu-grid">
+                {% for item, field in category.list %}
+                <article class="menu-card" data-price="{{ item.price }}">
+                    <div class="menu-card__image">
+                        {% if item.image_url %}
+                        <img src="{{ item.image_url }}" alt="{{ item.name }}" loading="lazy">
+                        {% else %}
+                        <span class="menu-card__placeholder" aria-hidden="true">{{ item.name|first }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="menu-card__body">
+                        <label class="menu-card__name" for="{{ field.id_for_label }}">{{ item.name }}</label>
+                        <p class="menu-card__price">¥{{ item.price }}</p>
+                        <div class="stepper">
+                            <button type="button" class="stepper__btn" data-step="-1" aria-label="{{ item.name }}を1つ減らす">−</button>
+                            {{ field }}
+                            <button type="button" class="stepper__btn" data-step="1" aria-label="{{ item.name }}を1つ増やす">＋</button>
+                        </div>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+            {% empty %}
+            <p class="empty">現在ご注文いただける商品はありません。</p>
+            {% endfor %}
+        </section>
+
+        <aside class="checkout">
+            <div class="checkout__member">
+                <span class="checkout__label">ご注文のお席</span>
+                <strong>{{ bill.seat_code }}</strong>
+            </div>
+            <dl class="checkout__summary">
+                <div><dt><span id="cart-count">0</span> 点</dt><dd>¥<span id="cart-subtotal">0</span></dd></div>
+                <div class="total"><dt>今回のご注文</dt><dd>¥<span id="cart-total">0</span></dd></div>
+                <div class="bill-so-far"><dt>これまでのご注文</dt><dd>¥{{ bill.amount_due }}</dd></div>
+            </dl>
+            <button type="submit" class="btn btn--primary">注文する</button>
+            <p class="checkout__note">お支払いはお帰りの際にまとめて承ります。</p>
+        </aside>
+    </form>
+
+    <section>
+        <div class="section-head">
+            <h1 class="section-title">ご注文の明細</h1>
+            <span class="bill-total">お会計 <strong>¥{{ bill.amount_due }}</strong></span>
+        </div>
+        <div class="orders">
+            {% for row in rows %}
+            {% with order=row.order %}
+            <article class="order-card">
+                <header class="order-card__head">
+                    <span class="badge badge--{{ order.status|lower }}">{{ row.status_label }}</span>
+                    {% if order.status == "PREPARING" %}<span class="order-card__progress">{{ order.cooked_line_count }}/{{ order.lines|length }} 品できあがり</span>{% endif %}
+                    <code class="order-card__id" title="{{ order.id }}">#{{ order.id|stringformat:"s"|slice:":4"|upper }}</code>
+                </header>
+                <ul class="order-card__lines">
+                    {% for line in order.lines %}
+                    <li><span>{{ line.name }}</span><span>× {{ line.quantity }}</span></li>
+                    {% endfor %}
+                </ul>
+                <dl class="order-card__amounts">
+                    <div class="total"><dt>合計</dt><dd>¥{{ order.total }}</dd></div>
+                </dl>
+                {% if order.status == "PLACED" %}
+                <footer class="order-card__foot">
+                    <span></span>
+                    <form method="post" action="{% url 'ordering:cancel_seat_order' seat_id order.id %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn--ghost">キャンセル</button>
+                    </form>
+                </footer>
+                {% endif %}
+            </article>
+            {% endwith %}
+            {% empty %}
+            <p class="empty">まだご注文はありません。</p>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+</main>
+
+{% if bill %}
+<script>
+// 数量の +/- と今回の注文の合計(目安)。確定値はサーバ側のドメインが計算する。
+(function () {
+    const form = document.getElementById("order-form");
+    const cards = form.querySelectorAll(".menu-card");
+    function refreshCart() {
+        let count = 0, subtotal = 0;
+        cards.forEach(function (card) {
+            const qty = parseInt(card.querySelector("input").value, 10) || 0;
+            card.classList.toggle("is-selected", qty > 0);
+            count += qty;
+            subtotal += qty * Number(card.dataset.price);
+        });
+        document.getElementById("cart-count").textContent = count;
+        document.getElementById("cart-subtotal").textContent = subtotal.toLocaleString("ja-JP");
+        document.getElementById("cart-total").textContent = subtotal.toLocaleString("ja-JP");
+    }
+    form.addEventListener("click", function (event) {
+        const button = event.target.closest(".stepper__btn");
+        if (!button) return;
+        const input = button.parentElement.querySelector("input");
+        const max = Number(input.max) || Infinity;
+        const next = (parseInt(input.value, 10) || 0) + Number(button.dataset.step);
+        input.value = Math.min(Math.max(next, 0), max);
+        refreshCart();
+    });
+    form.addEventListener("input", refreshCart);
+    refreshCart();
+})();
+</script>
+{% endif %}
+</body>
+</html>

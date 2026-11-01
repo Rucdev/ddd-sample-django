@@ -140,7 +140,8 @@ body {
 .seat__status { margin: 0; display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: var(--accent); }
 .seat__since { color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
 .seat__actions { display: flex; gap: 6px; }
-.seat__actions form { flex: 1; margin: 0; }
+.seat__actions form, .seat__actions > a { flex: 1; margin: 0; }
+.seat__actions > a.btn { display: block; text-align: center; text-decoration: none; }
 
 .btn {
     width: 100%;

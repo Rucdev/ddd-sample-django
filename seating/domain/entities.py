@@ -1,5 +1,6 @@
 import uuid
 
+from seating.domain.events import SeatOccupied, SeatVacated
 from seating.domain.exceptions import InvalidSeatTransition
 from seating.domain.value_objects import SeatPosition, SeatSpec, SeatStatus
 from shared.domain.entity import Entity
@@ -69,12 +70,14 @@ class Seat(Entity):
         self._transition({SeatStatus.RESERVED}, SeatStatus.AVAILABLE, "cancel reservation")
 
     def occupy(self) -> None:
-        """お客様が座る。予約していたお客様の着席と、予約なしの案内の両方。"""
+        """お客様が座る。予約していたお客様の着席と、予約なしの案内の両方。席の利用が始まる。"""
         self._transition({SeatStatus.AVAILABLE, SeatStatus.RESERVED}, SeatStatus.OCCUPIED, "be occupied")
+        self.record_event(SeatOccupied(seat_id=self.id, seat_code=self.code))
 
     def vacate(self) -> None:
-        """お客様が席を立ち、次のお客様を通せるようになる。"""
+        """お客様が席を立ち、次のお客様を通せるようになる。席の利用が終わる。"""
         self._transition({SeatStatus.OCCUPIED}, SeatStatus.AVAILABLE, "be vacated")
+        self.record_event(SeatVacated(seat_id=self.id, seat_code=self.code))
 
     def _transition(self, allowed: set[SeatStatus], to: SeatStatus, action: str) -> None:
         if self.status not in allowed:

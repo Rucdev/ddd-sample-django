@@ -65,3 +65,25 @@ class InvalidOrderTransition(OrderingError, ConflictError):
         self.current = current
         self.action = action
         super().__init__(f"Order {order_id} cannot {action} while {current}")
+
+
+class BillNotFound(OrderingError, NotFoundError):
+    def __init__(self, bill_id: uuid.UUID) -> None:
+        self.bill_id = bill_id
+        super().__init__(f"Bill {bill_id} was not found")
+
+
+class SeatNotInUse(OrderingError, ConflictError):
+    """席からの注文を受けたが、その席の会計が開いていない(席が使用中でない)。"""
+
+    def __init__(self, seat_id: uuid.UUID) -> None:
+        self.seat_id = seat_id
+        super().__init__(f"Seat {seat_id} is not in use, so it cannot take orders")
+
+
+class InvalidBillTransition(OrderingError, ConflictError):
+    def __init__(self, bill_id: uuid.UUID, current: str, action: str) -> None:
+        self.bill_id = bill_id
+        self.current = current
+        self.action = action
+        super().__init__(f"Bill {bill_id} cannot {action} while {current}")

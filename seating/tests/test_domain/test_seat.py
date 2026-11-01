@@ -1,6 +1,8 @@
 from unittest import TestCase
+from unittest.mock import ANY
 
 from seating.domain.entities import Seat
+from seating.domain.events import SeatOccupied, SeatVacated
 from seating.domain.exceptions import InvalidSeatTransition
 from seating.domain.value_objects import SeatStatus
 from seating.tests.factories import seat_spec
@@ -73,3 +75,39 @@ class SeatTransitionTests(TestCase):
         self.assertEqual(seat.capacity, 4)
         self.assertEqual((seat.position.row, seat.position.col), (2, 3))
         self.assertEqual(seat.status, SeatStatus.OCCUPIED)
+
+
+class SeatEventTests(TestCase):
+    """席の利用の始まり・終わりはイベントで外に知らせる(ordering が席の会計を開く / 締める)。"""
+
+    def test_occupy_records_seat_occupied(self) -> None:
+        seat = _seat()
+
+        seat.occupy()
+
+        self.assertEqual(seat.collect_events(), [SeatOccupied(seat_id=seat.id, seat_code="T1", occurred_at=ANY)])
+
+    def test_vacate_records_seat_vacated(self) -> None:
+        seat = _seat()
+        seat.occupy()
+        seat.collect_events()
+
+        seat.vacate()
+
+        self.assertEqual(seat.collect_events(), [SeatVacated(seat_id=seat.id, seat_code="T1", occurred_at=ANY)])
+
+    def test_reservation_records_no_event(self) -> None:
+        seat = _seat()
+
+        seat.reserve()
+        seat.cancel_reservation()
+
+        self.assertEqual(seat.collect_events(), [])
+
+    def test_failed_transition_records_no_event(self) -> None:
+        seat = _seat()
+
+        with self.assertRaises(InvalidSeatTransition):
+            seat.vacate()
+
+        self.assertEqual(seat.collect_events(), [])

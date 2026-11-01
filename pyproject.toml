@@ -89,12 +89,18 @@ ignore_imports = [
     "ordering.** -> kitchen.domain.events",
 ]
 
-# seating の内部実装には他モジュールから直接触らせない。公開窓口は seating.public のみ
+# seating の公開窓口は seating.public と、購読用のドメインイベント seating.domain.events のみ
 [[tool.importlinter.contracts]]
-name = "seating's internals are only reachable through seating.public"
+name = "seating's internals are only reachable through seating.public or seating.domain.events"
 type = "forbidden"
 source_modules = ["ordering", "kitchen", "menu", "customers"]
 forbidden_modules = ["seating"]
+# ordering は席の利用開始 / 終了のイベントだけを購読する(席の会計を開く / 締める)
+ignore_imports = [
+    "ordering.** -> seating.domain.events",
+    # テストからの直接参照は許可(席を使用中にしてから注文する、といった前提を作るため)
+    "ordering.tests.** -> seating.**",
+]
 
 # ドメイン層は純粋な Python に保ち、Django に依存させない
 [[tool.importlinter.contracts]]
